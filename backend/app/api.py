@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import pandas as pd
 import numpy as np
@@ -52,7 +52,9 @@ def train_model():
                 time.sleep(0.01) # Small delay
     
     # Return a streaming response
-    return Response(generate(), mimetype='application/json')
+    return Response(stream_with_context(generate()), mimetype='application/x-json-stream')
+    #return Response(generate(), mimetype='application/json')
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
