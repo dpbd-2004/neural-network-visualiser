@@ -1,15 +1,28 @@
-// frontend/src/types/index.ts
-
-// Basic structure for weights and biases
-export interface Parameters {
-  W1: number[][];
-  b1: number[][]; // Should be [[b1_1], [b1_2], ...]
-  W2: number[][];
-  b2: number[][]; // Should be [[b2_1]]
+// Neural Network Types
+export interface NeuralNetworkParameters {
+  [key: string]: number[][];
 }
 
-// Data structure expected from the backend's /api/train/status endpoint
-// Matches the structure in bhaskar-nie/backend/app/api.py
+export interface NetworkLayer {
+  size: number;
+  type: 'input' | 'hidden' | 'output';
+}
+
+export interface TrainingHistory {
+  loss: number[];
+  accuracy: number[];
+  weights: {
+    [key: string]: number[][];
+  }[];
+  biases: {
+    [key: string]: number[][];
+  }[];
+  decision_boundaries: {
+    epoch: number;
+    image: string;
+  }[];
+}
+
 export interface TrainingStatus {
   is_training: boolean;
   epoch: number;
@@ -17,82 +30,137 @@ export interface TrainingStatus {
   loss: number;
   accuracy: number;
   progress_percentage: number;
-  current_weights?: Record<string, number[][]>; // Use Record for flexibility
+  weights?: Record<string, number[][]>;
+  biases?: Record<string, number[][]>;
+  current_weights?: Record<string, number[][]>;
   current_biases?: Record<string, number[][]>;
-  decision_boundary?: { // Can be an object
+  decision_boundary?: string | {
     epoch: number;
-    image: string; // Base64 image string
-  } | string | null; // Or just the string, or null initially
-  session_id?: string;
-  hyperparameters?: {
+    image: string;
+  };
+}
+
+export interface SessionData {
+  session_id: string;
+  hyperparameters: {
     learning_rate: number;
     epochs: number;
   };
-  error?: string; // Optional error message
-  // Add other fields if your backend sends them
+  weights: Record<string, number[][]>[];
+  biases: Record<string, number[][]>[];
+  losses: number[];
+  accuracies: number[];
+  decision_boundaries?: {
+    epoch: number;
+    image: string;
+  }[];
+  timestamp: string;
 }
 
-// Data structure for the training form
+export interface EDAStats {
+  total_samples: number;
+  placement_rate: number;
+  train_test_split: string;
+  features: {
+    cgpa: {
+      mean: number;
+      median: number;
+      min: number;
+      max: number;
+    };
+    iq: {
+      mean: number;
+      median: number;
+      min: number;
+      max: number;
+    };
+  };
+}
+
+export interface EDAPlots {
+  cgpa_hist: string;
+  iq_hist: string;
+  scatter_plot: string;
+}
+
+export interface EDAData {
+  stats: EDAStats;
+  plots: EDAPlots;
+}
+
+export interface PredictionResult {
+  prediction: number;
+  probability: number;
+  label: string;
+  input: {
+    cgpa: number;
+    iq: number;
+  };
+  scaled_input: {
+    cgpa: number;
+    iq: number;
+  };
+}
+
+export interface EvaluationResult {
+  accuracy: number;
+  confusion_matrix: {
+    true_positives: number;
+    true_negatives: number;
+    false_positives: number;
+    false_negatives: number;
+  };
+  precision: number;
+  recall: number;
+  f1_score: number;
+}
+
+// API Response Types
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+}
+
+export interface TrainResponse {
+  success: boolean;
+  message: string;
+  session_id: string;
+}
+
+export interface SaveModelResponse {
+  success: boolean;
+  data: {
+    filename: string;
+    download_url: string;
+  };
+}
+
+export interface LoadModelResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface SessionsResponse {
+  success: boolean;
+  data: {
+    session_id: string;
+    hyperparameters: {
+      learning_rate: number;
+      epochs: number;
+      hidden_units: number;
+    };
+    timestamp: string;
+  }[];
+}
+
+// Form Types
 export interface TrainingFormData {
   learning_rate: number;
   epochs: number;
 }
 
-// Structure for EDA stats from backend
-export interface EdaStats {
-    total_samples: number;
-    placement_rate: number;
-    train_test_split: string;
-    features: {
-        cgpa: { mean: number; median: number; min: number; max: number };
-        iq: { mean: number; median: number; min: number; max: number };
-    };
-}
-
-// Structure for EDA plots (base64 strings)
-export interface EdaPlots {
-    cgpa_hist: string;
-    iq_hist: string;
-    scatter_plot: string;
-}
-
-// Structure for prediction result
-export interface PredictionResult {
-    prediction: number;
-    probability: number;
-    label: string;
-    input: { cgpa: number; iq: number };
-    scaled_input: { cgpa: number; iq: number };
-}
-
-// Structure for model state
-export interface ModelState {
-    weights: Record<string, number[][]>;
-    biases: Record<string, number[][]>;
-    decision_boundary?: { epoch: number; image: string } | string | null;
-}
-
-// Structure for saved sessions list
-export interface SessionSummary {
-    session_id: string;
-    hyperparameters: { learning_rate?: number; epochs?: number };
-    timestamp: string | number; // Or Date if you parse it
-}
-
-// Structure for replayed session data
-export interface SessionData extends SessionSummary {
-    history: {
-        loss: number[];
-        accuracy: number[];
-        weights: Record<string, number[][]>[];
-        biases: Record<string, number[][]>[];
-        decision_boundaries: { epoch: number; image: string }[];
-    };
-    // Add other relevant fields if saved
-}
-
-// Structure for save model response
-export interface SaveModelResponse {
-    filename: string;
-    download_url: string;
+export interface PredictionFormData {
+  cgpa: number;
+  iq: number;
 }
