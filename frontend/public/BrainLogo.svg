@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800px" height="800px" viewBox="0 0 800 800" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="brainGradient">
+            <stop stop-color="#3b82f6" offset="0%"></stop>
+            <stop stop-color="#8b5cf6" offset="50%"></stop>
+            <stop stop-color="#10b981" offset="100%"></stop>
+        </linearGradient>
+        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="8" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+    </defs>
+    <g stroke="none" fill="none" filter="url(#glow)">
+        <path d="M400,120 C330,120 270,150 230,200 C190,150 130,120 60,120 C30,120 0,150 0,180 C0,210 20,230 40,240 C30,260 20,290 20,320 C20,350 30,380 50,410 C30,440 20,470 20,500 C20,530 30,560 50,580 C30,610 20,640 20,670 C20,700 40,730 70,740 C100,750 130,730 150,710 C170,730 200,740 230,740 C260,740 290,730 310,710 C330,730 360,740 390,740 C420,740 450,730 470,710 C490,730 520,740 550,740 C580,740 610,730 630,710 C650,730 680,750 710,740 C740,730 760,700 760,670 C760,640 750,610 730,580 C750,560 760,530 760,500 C760,470 750,440 730,410 C750,380 760,350 760,320 C760,290 750,260 740,240 C760,230 780,210 780,180 C780,150 750,120 720,120 C650,120 590,150 550,200 C510,150 450,120 400,120 Z" stroke="#0f172a" stroke-width="20" fill="url(#brainGradient)"></path>
+        
+        <!-- Neural network connections -->
+        <g stroke="#ffffff" stroke-width="3" stroke-opacity="0.6">
+            <line x1="200" y1="300" x2="300" y2="400"></line>
+            <line x1="200" y1="300" x2="300" y2="500"></line>
+            <line x1="200" y1="400" x2="300" y2="300"></line>
+            <line x1="200" y1="400" x2="300" y2="500"></line>
+            <line x1="200" y1="500" x2="300" y2="300"></line>
+            <line x1="200" y1="500" x2="300" y2="400"></line>
+            
+            <line x1="300" y1="300" x2="400" y2="350"></line>
+            <line x1="300" y1="300" x2="400" y2="450"></line>
+            <line x1="300" y1="400" x2="400" y2="350"></line>
+            <line x1="300" y1="400" x2="400" y2="450"></line>
+            <line x1="300" y1="500" x2="400" y2="350"></line>
+            <line x1="300" y1="500" x2="400" y2="450"></line>
+            
+            <line x1="400" y1="350" x2="500" y2="300"></line>
+            <line x1="400" y1="350" x2="500" y2="400"></line>
+            <line x1="400" y1="450" x2="500" y2="400"></line>
+            <line x1="400" y1="450" x2="500" y2="500"></line>
+            
+            <line x1="500" y1="300" x2="600" y2="350"></line>
+            <line x1="500" y1="400" x2="600" y2="350"></line>
+            <line x1="500" y1="400" x2="600" y2="450"></line>
+            <line x1="500" y1="500" x2="600" y2="450"></line>
+        </g>
+        
+        <!-- Nodes -->
+        <g>
+            <circle cx="200" cy="300" r="10" fill="#3b82f6"></circle>
+            <circle cx="200" cy="400" r="10" fill="#3b82f6"></circle>
+            <circle cx="200" cy="500" r="10" fill="#3b82f6"></circle>
+            
+            <circle cx="300" cy="300" r="10" fill="#8b5cf6"></circle>
+            <circle cx="300" cy="400" r="10" fill="#8b5cf6"></circle>
+            <circle cx="300" cy="500" r="10" fill="#8b5cf6"></circle>
+            
+            <circle cx="400" cy="350" r="10" fill="#8b5cf6"></circle>
+            <circle cx="400" cy="450" r="10" fill="#8b5cf6"></circle>
+            
+            <circle cx="500" cy="300" r="10" fill="#8b5cf6"></circle>
+            <circle cx="500" cy="400" r="10" fill="#8b5cf6"></circle>
+            <circle cx="500" cy="500" r="10" fill="#8b5cf6"></circle>
+            
+            <circle cx="600" cy="350" r="10" fill="#10b981"></circle>
+            <circle cx="600" cy="450" r="10" fill="#10b981"></circle>
+        </g>
+    </g>
+</svg> 
