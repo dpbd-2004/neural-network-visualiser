@@ -7,11 +7,41 @@ import time
 import logging
 from werkzeug.utils import secure_filename
 
+from dotenv import load_dotenv
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
 from .neural_network import NeuralNetwork
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# --- Load Environment Variables ---
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) # Look for .env in parent (backend) directory
+hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+
+if not hf_token:
+    logger.warning("Hugging Face API token not found. Chatbot functionality will be limited.")
+    chat_model = None
+else:
+    try:
+        # --- Initialize Hugging Face LLM ---
+        llm = HuggingFaceEndpoint(
+            repo_id="mistralai/Mistral-7B-Instruct-v0.2",
+            task="conversational", 
+            max_new_tokens=512,
+            temperature=0.7,
+            repetition_penalty=1.1,
+            huggingfacehub_api_token=hf_token
+        )
+        chat_model = ChatHuggingFace(llm=llm)
+        logger.info("Hugging Face Chat Model initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize Hugging Face model: {e}")
+        chat_model = None
+# --- End LLM Initialization ---
 
 app = Flask(__name__)
 CORS(app)
@@ -353,6 +383,52 @@ def get_model_state():
             'decision_boundary': decision_boundary
         }
     })
+
+# --- New Chatbot Endpoint ---
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    if not chat_model:
+        logger.error("Chat model not initialized. Check Hugging Face token and setup.")
+        return jsonify({
+            'success': False,
+            'message': 'Chatbot is not available due to initialization error.'
+        }), 503 # Service Unavailable
+
+    data = request.json
+    user_message = data.get('message')
+
+    if not user_message:
+        return jsonify({'success': False, 'message': 'No message provided'}), 400
+
+    try:
+        # Simple invocation - you might add history or a template later
+        # Define a simple prompt template
+        template = """
+        You are a helpful AI assistant knowledgeable about neural networks and deep learning, designed to answer questions within the context of the 'Neural Network Visualizer' web application.
+        Keep your answers concise and informative.
+
+        User: {user_input}
+        AI Assistant:"""
+        prompt = PromptTemplate.from_template(template)
+
+        # Create a simple chain
+        chain = prompt | chat_model | StrOutputParser()
+
+        # Invoke the chain
+        ai_response = chain.invoke({"user_input": user_message})
+
+        # Basic cleanup - remove potential instruction remnants if any
+        # (This depends heavily on the model's output format)
+        # ai_response = ai_response.split("AI Assistant:")[-1].strip()
+
+        return jsonify({'success': True, 'reply': ai_response})
+
+    except Exception as e:
+        logger.error(f"Error processing chat message: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'Error getting response from AI: {e}'}), 500
+# --- End Chatbot Endpoint ---
 
 if __name__ == '__main__':
     app.run(debug=True)

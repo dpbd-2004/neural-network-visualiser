@@ -1,9 +1,11 @@
+// frontend/src/App.tsx
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import styled, { ThemeProvider, createGlobalStyle, DefaultTheme } from 'styled-components';
 import DatasetAnalysisPage from './pages/DatasetAnalysisPage';
 import TrainingPage from './pages/TrainingPage';
 import PredictionPage from './pages/PredictionPage';
+import ChatbotWidget from './components/ChatbotWidget'; // <-- Import the new component
 
 // Theme definitions with enhanced color schemes
 const lightTheme: DefaultTheme = {
@@ -299,6 +301,10 @@ const App: React.FC = () => {
             <p>Neural Network Visualizer © {new Date().getFullYear()}</p>
             <p>Built with <span role="img" aria-label="heart">🧠</span> using React and Flask</p>
           </Footer>
+
+          {/* Add the ChatbotWidget here */}
+          <ChatbotWidget />
+
         </AppContainer>
       </Router>
     </ThemeProvider>

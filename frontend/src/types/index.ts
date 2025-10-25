@@ -164,3 +164,16 @@ export interface PredictionFormData {
   cgpa: number;
   iq: number;
 }
+
+// Chatbot Types
+export interface ChatMessage {
+  id: string;
+  text: string;
+  sender: 'user' | 'bot';
+}
+
+export interface ChatResponse {
+  success: boolean;
+  reply?: string;
+  message?: string;
+}

@@ -11,7 +11,8 @@ import {
   SessionsResponse,
   SessionData,
   TrainingFormData,
-  PredictionFormData
+  PredictionFormData,
+  ChatResponse
 } from '../types';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -141,3 +142,19 @@ export const replaySession = async (sessionId: string): Promise<SessionData> => 
   }
   throw new Error(response.data.message || 'Failed to replay session');
 };
+
+// --- New Chatbot API Function ---
+export const sendMessage = async (message: string): Promise<ChatResponse> => {
+  try {
+    const response = await api.post<ChatResponse>('/api/chat', { message });
+    return response.data;
+  } catch (error) {
+    console.error('Error sending message:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      // Return the error structure from the backend if available
+      return error.response.data as ChatResponse;
+    }
+    return { success: false, message: 'Failed to connect to the chat service.' };
+  }
+};
+// --- End New Chatbot API Function ---

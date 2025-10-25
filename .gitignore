@@ -1,5 +1,6 @@
 # Python / Flask Backend
 backend/venv/
+backend/.env
 backend/app/__pycache__/
 backend/app/models/
 backend/app/sessions/
