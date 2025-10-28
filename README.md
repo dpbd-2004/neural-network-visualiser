@@ -65,7 +65,9 @@ This application provides an end-to-end experience for:
 All neural network computations are implemented from scratch using only NumPy, making the inner workings transparent and educational.
 
 ## 🏛️ Project Structure
+```bash
 ├── backend/ # Flask backend │ ├── app/ # Application code │ │ ├── api.py # API endpoints │ │ └── neural_network.py # Neural network implementation │ │ └── placement-dataset.csv │ ├── static/ # Saved models & sessions │ ├── .env # For API keys (you must create this) │ ├── requirements.txt # Python dependencies │ └── run.py # Flask run script ├── frontend/ # React frontend │ ├── public/ │ ├── src/ │ │ ├── components/ # React components │ │ │ ├── NeuralNetworkVisualizer.tsx │ │ │ └── ChatbotWidget.tsx # AI Chatbot component │ │ ├── pages/ # Page components │ │ ├── services/ # API services │ │ └── types/ # TypeScript type definitions │ ├── package.json │ └── tsconfig.json ├── .gitignore └── README.md # This file
+```
 
 ## 📊 Dataset
 
