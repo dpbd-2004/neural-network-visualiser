@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useForm, Controller } from 'react-hook-form';
-import { predict, getModelState } from '../services/api'; // <-- Import getModelState
+import { predict, getModelState } from '../services/api';
 import { PredictionFormData, PredictionResult } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
-import NeuralNetworkVisualizer from '../components/NeuralNetworkVisualizer'; // <-- Import Visualizer
+import NeuralNetworkVisualizer from '../components/NeuralNetworkVisualizer';
+import ParametersDisplay from '../components/ParametersDisplay'; // <-- Import new component
 
-// --- Styled Components (No changes, same as before) ---
+// --- Styled Components ---
 
 const PageContainer = styled.div`
   padding: 25px;
@@ -200,7 +201,6 @@ const ResultDetails = styled.div`
   }
 `;
 
-// --- NEW Visualizer container ---
 const VisualizerContainer = styled(BaseCard)`
   margin-top: 30px;
 `;
@@ -269,10 +269,8 @@ const PredictionPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   
-  // --- THIS IS THE NEW FEATURE ---
   // State to hold the model's parameters
   const [networkParams, setNetworkParams] = useState<{ weights: any, biases: any } | null>(null);
-  // --- END NEW FEATURE ---
 
   const isClassification = modelMode === 'classification';
 
@@ -294,8 +292,7 @@ const PredictionPage: React.FC = () => {
       const response = await predict(data, modelMode);
       setResult(response);
       
-      // 2. --- THIS IS THE NEW FEATURE ---
-      // If prediction is successful, fetch the model state
+      // 2. If prediction is successful, fetch the model state
       try {
         const modelState = await getModelState(modelMode);
         setNetworkParams({
@@ -306,7 +303,6 @@ const PredictionPage: React.FC = () => {
         console.error("Failed to fetch model state:", modelErr);
         // Don't show an error, just fail to show the visualizer
       }
-      // --- END NEW FEATURE ---
 
     } catch (err) {
       setError((err as Error).message || 'Failed to get prediction.');
@@ -367,19 +363,28 @@ const PredictionPage: React.FC = () => {
         </ResultContainer>
       )}
       
-      {/* --- THIS IS THE NEW FEATURE --- */}
-      {/* Render the visualizer if we have a result AND network params */}
+      {/* Render the visualizer AND parameters if we have a result AND network params */}
       {result && networkParams && (
-        <VisualizerContainer>
-          <CardTitle>Model State (Final Weights & Biases)</CardTitle>
-          <NeuralNetworkVisualizer
-            weights={networkParams.weights}
-            biases={networkParams.biases}
-            mode={modelMode}
-          />
-        </VisualizerContainer>
+        <>
+          <VisualizerContainer>
+            <CardTitle>Model State: Architecture</CardTitle>
+            <NeuralNetworkVisualizer
+              weights={networkParams.weights}
+              biases={networkParams.biases}
+              mode={modelMode}
+            />
+          </VisualizerContainer>
+          
+          {/* --- NEW CARD: Weights and Biases --- */}
+          <VisualizerContainer>
+            <CardTitle>Model State: Weights & Biases</CardTitle>
+            <ParametersDisplay
+              weights={networkParams.weights}
+              biases={networkParams.biases}
+            />
+          </VisualizerContainer>
+        </>
       )}
-      {/* --- END NEW FEATURE --- */}
       
     </PageContainer>
   );

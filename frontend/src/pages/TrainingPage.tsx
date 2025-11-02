@@ -16,28 +16,29 @@ import {
 import { startTraining, getTrainingStatus, getModelState } from '../services/api';
 import { TrainingFormData, TrainingStatus } from '../types';
 import NeuralNetworkVisualizer from '../components/NeuralNetworkVisualizer';
-import { useTheme } from '../contexts/ThemeContext'; // <-- Import theme hook
+import { useTheme } from '../contexts/ThemeContext';
+import ParametersDisplay from '../components/ParametersDisplay'; // <-- Import new component
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend
 );
 
-// --- Styled Components (Update to use dynamic theme) ---
+// --- Styled Components ---
 
 const PageContainer = styled.div`
   padding: 25px;
   max-width: 1400px;
   margin: 0 auto;
   position: relative;
-  background-color: #050a15;
-  color: #e0e6ff;
+  background-color: ${props => props.theme.background};
+  color: ${props => props.theme.text};
 `;
 
 const PageTitle = styled.h1`
   font-size: 2.5rem;
   text-align: center;
   margin-bottom: 35px;
-  color: #ffffff;
+  color: ${props => props.theme.text};
   position: relative;
   letter-spacing: 1.5px;
   text-shadow: 0 0 20px ${props => props.theme.colors.primary}90;
@@ -82,7 +83,7 @@ const RightColumn = styled.div`
 `;
 
 const BaseCard = styled.div`
-  background-color: rgba(10, 20, 40, 0.8);
+  background-color: ${props => props.theme.cardBackground};
   border-radius: 12px;
   padding: 25px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 60px ${props => props.theme.colors.primary}10;
@@ -106,7 +107,7 @@ const BaseCard = styled.div`
 const CardTitle = styled.h2`
   font-size: 1.5rem;
   margin-bottom: 20px;
-  color: #e0e6ff;
+  color: ${props => props.theme.text};
   position: relative;
   display: inline-block;
   text-shadow: 0 0 10px ${props => props.theme.colors.primary}70;
@@ -138,7 +139,7 @@ const FormGroup = styled.div`
 
 const Label = styled.label`
   font-size: 1rem;
-  color: #a0a6ce;
+  color: ${props => props.theme.neutralText};
   margin-bottom: 8px;
   letter-spacing: 0.5px;
 `;
@@ -147,8 +148,8 @@ const Input = styled.input`
   padding: 12px 15px;
   border-radius: 8px;
   border: 1px solid ${props => props.theme.colors.primary}40;
-  background-color: rgba(0, 20, 60, 0.5);
-  color: #e0e6ff;
+  background-color: ${props => props.theme.background};
+  color: ${props => props.theme.text};
   font-size: 1rem;
   transition: all 0.3s ease;
   
@@ -187,7 +188,7 @@ const Button = styled.button`
 const ProgressBarContainer = styled.div`
   width: 100%;
   height: 25px;
-  background-color: rgba(0, 20, 60, 0.5);
+  background-color: ${props => props.theme.background};
   border-radius: 12px;
   border: 1px solid ${props => props.theme.colors.primary}40;
   overflow: hidden;
@@ -207,7 +208,7 @@ const ProgressBar = styled.div<{ progress: number }>`
 const StatusText = styled.div`
   margin-top: 15px;
   font-size: 0.9rem;
-  color: #a0a6ce;
+  color: ${props => props.theme.neutralText};
   text-align: center;
 `;
 
@@ -222,7 +223,7 @@ const StatItem = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  background-color: rgba(0, 20, 60, 0.5);
+  background-color: ${props => props.theme.background};
   padding: 15px;
   border-radius: 8px;
   border: 1px solid ${props => props.theme.colors.primary}20;
@@ -239,7 +240,7 @@ const StatValue = styled.span`
 
 const StatLabel = styled.span`
   font-size: 0.9rem;
-  color: #a0a6ce;
+  color: ${props => props.theme.neutralText};
   margin-top: 5px;
 `;
 
@@ -248,7 +249,7 @@ const ChartContainer = styled.div`
   padding-bottom: 20px;
 `;
 
-const DecisionBoundaryImage = styled.img`
+const PlotImage = styled.img`
   width: 100%;
   border-radius: 8px;
   border: 1px solid ${props => props.theme.colors.primary}40;
@@ -267,11 +268,33 @@ const ErrorMessage = styled.div`
   text-align: center;
 `;
 
+// --- NEW Component for Epoch Stats ---
+const EpochStats = styled.div`
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+`;
+
+const EpochStatItem = styled.div`
+  color: ${props => props.theme.neutralText};
+  font-size: 1rem;
+  span {
+    display: block;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: ${props => props.theme.colors.primary};
+    margin-bottom: 5px;
+    transition: color 0.3s ease;
+  }
+`;
+// --- End New Component ---
+
+
 const TrainingPage: React.FC = () => {
   const { modelMode, theme } = useTheme(); // <-- Get mode and theme
   const isClassification = modelMode === 'classification';
 
-  const { control, handleSubmit, formState: { errors } } = useForm<TrainingFormData>({
+  const { control, handleSubmit, formState: { errors }, watch } = useForm<TrainingFormData>({
     defaultValues: {
       learning_rate: 0.01,
       epochs: 100,
@@ -285,6 +308,10 @@ const TrainingPage: React.FC = () => {
   const [metricHistory, setMetricHistory] = useState<number[]>([]); // For Accuracy or R2
   const [plotImage, setPlotImage] = useState<string | null>(null);
   const [networkParams, setNetworkParams] = useState<{ weights: any, biases: any } | null>(null);
+  
+  // Use 'watch' to get live value from form for the total epochs display
+  const watchedEpochs = watch('epochs');
+  const [totalEpochs, setTotalEpochs] = useState(watchedEpochs);
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -327,6 +354,12 @@ const TrainingPage: React.FC = () => {
   useEffect(() => {
     fetchInitialState();
   }, [modelMode]);
+  
+  // Update total epochs when form value changes
+  useEffect(() => {
+    setTotalEpochs(watchedEpochs);
+  }, [watchedEpochs]);
+
 
   // Polling function
   const pollStatus = async () => {
@@ -375,6 +408,7 @@ const TrainingPage: React.FC = () => {
     // Reset state for new training run
     resetAllState();
     setIsTraining(true);
+    setTotalEpochs(data.epochs); // <-- Set total epochs
     
     setTrainingStatus({
       is_training: true, epoch: 0, total_epochs: data.epochs,
@@ -405,7 +439,7 @@ const TrainingPage: React.FC = () => {
     labels: Array.from({ length: lossHistory.length }, (_, i) => i + 1),
     datasets: [
       {
-        label: 'Loss (MSE)',
+        label: isClassification ? 'Loss (Cross-Entropy)' : 'Loss (MSE)',
         data: lossHistory,
         borderColor: theme.colors.danger,
         backgroundColor: `${theme.colors.danger}30`,
@@ -427,12 +461,12 @@ const TrainingPage: React.FC = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top' as const, labels: { color: '#e0e6ff', size: 14 } },
+      legend: { position: 'top' as const, labels: { color: theme.text, fontSize: 14 } },
       tooltip: { backgroundColor: 'rgba(0, 0, 0, 0.7)', titleColor: '#e0e6ff', bodyColor: '#e0e6ff' },
     },
     scales: {
-      x: { ticks: { color: '#a0a6ce' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
-      y: { ticks: { color: '#a0a6ce' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+      x: { ticks: { color: theme.neutralText }, grid: { color: theme.border } },
+      y: { ticks: { color: theme.neutralText }, grid: { color: theme.border } },
     },
   };
 
@@ -447,7 +481,6 @@ const TrainingPage: React.FC = () => {
           <BaseCard>
             <CardTitle>Hyperparameters</CardTitle>
             <Form onSubmit={handleSubmit(onSubmit)}>
-              {/* Form Groups are unchanged */}
               <FormGroup>
                 <Label htmlFor="learning_rate">Learning Rate (α)</Label>
                 <Controller
@@ -492,7 +525,7 @@ const TrainingPage: React.FC = () => {
                 <StatsGrid>
                   <StatItem>
                     <StatValue>{trainingStatus.loss.toFixed(4)}</StatValue>
-                    <StatLabel>Loss (MSE)</StatLabel>
+                    <StatLabel>Loss</StatLabel>
                   </StatItem>
                   <StatItem>
                     <StatValue>
@@ -513,32 +546,58 @@ const TrainingPage: React.FC = () => {
             {error && <ErrorMessage>{error}</ErrorMessage>}
           </BaseCard>
 
+          {/* --- ADDED CARD: Neural Network Parameters --- */}
+          <BaseCard>
+            <CardTitle>Neural Network Parameters</CardTitle>
+            <EpochStats>
+              <EpochStatItem>
+                <span>{trainingStatus?.epoch || 0}</span>
+                Current Epoch
+              </EpochStatItem>
+              <EpochStatItem>
+                <span>{totalEpochs}</span>
+                Total Epochs
+              </EpochStatItem>
+            </EpochStats>
+          </BaseCard>
+        </LeftColumn>
+        
+        <RightColumn>
           <BaseCard>
             <CardTitle>Network Architecture (2-2-1)</CardTitle>
             {networkParams ? (
               <NeuralNetworkVisualizer
                 weights={networkParams.weights}
                 biases={networkParams.biases}
-                mode={modelMode} // <-- Pass mode to visualizer
+                mode={modelMode}
               />
             ) : (
               <StatusText>Loading network state...</StatusText>
             )}
           </BaseCard>
-        </LeftColumn>
-        
-        <RightColumn>
+          
+          {/* --- ADDED CARD: Weights and Biases --- */}
+          {networkParams && (
+            <BaseCard>
+              <CardTitle>Weights & Biases (Text)</CardTitle>
+              <ParametersDisplay
+                weights={networkParams.weights}
+                biases={networkParams.biases}
+              />
+            </BaseCard>
+          )}
+
           <BaseCard>
             <CardTitle>Live Metrics</CardTitle>
             <ChartContainer>
-              <Line data={chartData} options={chartOptions} />
+              <Line data={chartData} options={chartOptions as any} />
             </ChartContainer>
           </BaseCard>
           
           <BaseCard>
-            <CardTitle>{isClassification ? 'Decision Boundary' : 'Prediction Surface'}</CardTitle>
+            <CardTitle>{isClassification ? 'Decision Boundary' : 'Best-Fit Lines'}</CardTitle>
             {plotImage ? (
-              <DecisionBoundaryImage src={`data:image/png;base64,${plotImage}`} alt="Model Plot" />
+              <PlotImage src={`data:image/png;base64,${plotImage}`} alt="Model Plot" />
             ) : (
               <StatusText>Plot will be generated during training...</StatusText>
             )}
@@ -550,16 +609,3 @@ const TrainingPage: React.FC = () => {
 };
 
 export default TrainingPage;
-
-// import React from 'react';
-
-// const TrainingPage: React.FC = () => {
-//   return (
-//     <div>
-//       <h1>Neural Network Training</h1>
-//       <p>This is where the training controls and visualization will go.</p>
-//     </div>
-//   );
-// };
-
-// export default TrainingPage;
