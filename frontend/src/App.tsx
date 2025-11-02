@@ -1,53 +1,14 @@
-// frontend/src/App.tsx
-import React, { useState } from 'react';
+import React from 'react'; // Removed useState
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import styled, { ThemeProvider, createGlobalStyle, DefaultTheme } from 'styled-components';
+import styled, { createGlobalStyle, DefaultTheme } from 'styled-components'; // Removed ThemeProvider
 import DatasetAnalysisPage from './pages/DatasetAnalysisPage';
 import TrainingPage from './pages/TrainingPage';
 import PredictionPage from './pages/PredictionPage';
-import ChatbotWidget from './components/ChatbotWidget'; // <-- Import the new component
+import ChatbotWidget from './components/ChatbotWidget';
+import { useTheme } from './contexts/ThemeContext'; // <-- Import our new hook
 
-// Theme definitions with enhanced color schemes
-const lightTheme: DefaultTheme = {
-  colors: {
-    primary: '#2962ff',    // Deeper blue for better contrast
-    secondary: '#e91e63',  // Vibrant pink
-    success: '#00c853',    // Brighter green
-    danger: '#d50000',     // Deeper red
-    text: '#212121'        // Very dark gray, almost black
-  },
-  background: '#f8f9fa',   // Light gray background
-  text: '#212121',         // Very dark gray text
-  cardBackground: '#ffffff', // Pure white card background
-  border: '#e0e0e0',       // Light gray border
-  highlight: '#bbdefb',    // Light blue highlight
-  accent: '#ff4081',       // Bright pink accent
-  darkShadow: 'rgba(0, 0, 0, 0.15)', // Lighter shadow
-  lightText: '#ffffff',    // White text
-  neutralText: '#424242'   // Dark gray for neutral text (better contrast)
-};
-
-const darkTheme: DefaultTheme = {
-  colors: {
-    primary: '#82b1ff',    // Brighter blue for dark mode
-    secondary: '#ff80ab',  // Brighter pink
-    success: '#69f0ae',    // Bright teal/green
-    danger: '#ff5252',     // Bright red
-    text: '#f5f5f5'        // Very light gray
-  },
-  background: '#121212',   // Very dark gray background
-  text: '#f5f5f5',         // Very light gray text
-  cardBackground: '#1e1e1e', // Dark card background
-  border: '#424242',       // Medium-dark gray border
-  highlight: '#3949ab',    // Deeper blue highlight
-  accent: '#ff80ab',       // Bright pink accent
-  darkShadow: 'rgba(0, 0, 0, 0.5)', // Darker shadow
-  lightText: '#ffffff',    // White text
-  neutralText: '#bdbdbd'   // Light gray for neutral text (better contrast)
-};
-
-// Global styles
-const GlobalStyle = createGlobalStyle`
+// Global styles (update to use new theme variables)
+const GlobalStyle = createGlobalStyle<{theme: DefaultTheme}>`
   * {
     margin: 0;
     padding: 0;
@@ -118,7 +79,7 @@ const Header = styled.header`
 `;
 
 const HeaderContent = styled.div`
-  max-width: 1200px;
+  max-width: 1400px; /* Widen for new dropdown */
   margin: 0 auto;
   display: flex;
   justify-content: space-between;
@@ -128,10 +89,11 @@ const HeaderContent = styled.div`
 const Logo = styled.div`
   font-size: 1.5rem;
   font-weight: bold;
-  color: ${props => props.theme.colors.primary};
+  color: ${props => props.theme.colors.primary}; /* Dynamic color */
   display: flex;
   align-items: center;
   gap: 10px;
+  transition: color 0.3s ease;
   
   img {
     width: 36px;
@@ -144,6 +106,7 @@ const NavContainer = styled.nav`
   gap: 12px;
 `;
 
+// Update NavLink to use dynamic theme colors
 const NavLink = styled(Link)<{ $active?: boolean }>`
   text-decoration: none;
   color: ${props => (props.$active ? props.theme.colors.primary : props.theme.text)};
@@ -161,8 +124,8 @@ const NavLink = styled(Link)<{ $active?: boolean }>`
     transform: translateX(-50%);
     width: ${props => (props.$active ? '80%' : '0')};
     height: 3px;
-    background: linear-gradient(to right, ${props => props.theme.colors.primary}, ${props => props.theme.colors.secondary}90);
-    transition: width 0.3s ease;
+    background: ${props => props.theme.primaryGradient}; /* Dynamic gradient */
+    transition: all 0.3s ease;
     border-radius: 3px;
   }
 
@@ -177,12 +140,44 @@ const NavLink = styled(Link)<{ $active?: boolean }>`
   }
 `;
 
+const HeaderControls = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 20px;
+`;
+
+const ModeSelect = styled.select`
+  background: ${props => props.theme.cardBackground};
+  border: 1px solid ${props => props.theme.border};
+  color: ${props => props.theme.text};
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 2.5rem; // space for arrow
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23${props => props.theme.text.substring(1)}' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 16px 16px;
+
+  &:hover {
+    border-color: ${props => props.theme.colors.primary};
+  }
+
+  &:focus {
+    outline: none;
+    border-color: ${props => props.theme.colors.primary};
+    box-shadow: 0 0 10px ${props => props.theme.colors.primary}30;
+  }
+`;
+
+// Re-add ThemeToggle
 const ThemeToggle = styled.button`
-  background: ${props => 
-    props.theme === lightTheme 
-      ? 'linear-gradient(to right, #ffffff, #e3f2fd)' 
-      : 'linear-gradient(to right, #1e1e1e, #3d5afe20)'
-  };
+  background: ${props => props.theme.cardBackground};
   border: 1px solid ${props => props.theme.border};
   color: ${props => props.theme.text};
   padding: 0.6rem 1.2rem;
@@ -197,11 +192,8 @@ const ThemeToggle = styled.button`
   box-shadow: 0 2px 5px ${props => props.theme.darkShadow};
 
   &:hover {
-    background: linear-gradient(to right, ${props => props.theme.colors.primary}, ${props => props.theme.colors.secondary});
-    color: ${props => props.theme.lightText};
     border-color: ${props => props.theme.colors.primary};
-    box-shadow: 0 4px 12px ${props => props.theme.darkShadow};
-    transform: translateY(-2px);
+    color: ${props => props.theme.colors.primary};
   }
 `;
 
@@ -234,7 +226,7 @@ const ContentContainer = styled.main`
   padding: 0 1rem;
 `;
 
-// Navigation component
+// Navigation component (no changes)
 const Navigation: React.FC = () => {
   const location = useLocation();
   
@@ -255,26 +247,33 @@ const Navigation: React.FC = () => {
 
 // Main App component
 const App: React.FC = () => {
-  const [isDarkTheme, setIsDarkTheme] = useState<boolean>(true);
+  // Get all state and functions from our new context
+  const { modelMode, setModelMode, themeMode, toggleThemeMode, theme } = useTheme(); 
   
-  const toggleTheme = () => {
-    setIsDarkTheme(!isDarkTheme);
+  const handleModeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setModelMode(event.target.value as 'classification' | 'regression');
   };
   
   return (
-    <ThemeProvider theme={isDarkTheme ? darkTheme : lightTheme}>
-      <GlobalStyle />
-      <Router>
-        <AppContainer>
-          <Header>
-            <HeaderContent>
-              <Logo>
-                <img src="/BrainLogo.svg" alt="Neural Network Logo" />
-                Neural Network Visualizer
-              </Logo>
-              <Navigation />
-              <ThemeToggle onClick={toggleTheme}>
-                {isDarkTheme ? (
+    // The <ThemeProvider> is now in index.tsx
+    <Router>
+      <GlobalStyle theme={theme} /> {/* Pass theme to GlobalStyle */}
+      <AppContainer>
+        <Header>
+          <HeaderContent>
+            <Logo>
+              <img src="/BrainLogo.svg" alt="Neural Network Logo" />
+              Neural Network Visualizer
+            </Logo>
+            <Navigation />
+            <HeaderControls>
+              <ModeSelect value={modelMode} onChange={handleModeChange}>
+                <option value="classification">🔵 Classification</option>
+                <option value="regression">🔴 Regression</option>
+              </ModeSelect>
+              
+              <ThemeToggle onClick={toggleThemeMode}>
+                {themeMode === 'dark' ? (
                   <>
                     <span role="img" aria-label="sun">☀️</span>
                     <span>Light Mode</span>
@@ -286,28 +285,26 @@ const App: React.FC = () => {
                   </>
                 )}
               </ThemeToggle>
-            </HeaderContent>
-          </Header>
-          
-          <ContentContainer>
-            <Routes>
-              <Route path="/" element={<DatasetAnalysisPage />} />
-              <Route path="/training" element={<TrainingPage />} />
-              <Route path="/prediction" element={<PredictionPage />} />
-            </Routes>
-          </ContentContainer>
-          
-          <Footer>
-            <p>Neural Network Visualizer © {new Date().getFullYear()}</p>
-            <p>Built with <span role="img" aria-label="heart">🧠</span> using React and Flask</p>
-          </Footer>
+            </HeaderControls>
+          </HeaderContent>
+        </Header>
+        
+        <ContentContainer>
+          <Routes>
+            <Route path="/" element={<DatasetAnalysisPage />} />
+            <Route path="/training" element={<TrainingPage />} />
+            <Route path="/prediction" element={<PredictionPage />} />
+          </Routes>
+        </ContentContainer>
+        
+        <Footer>
+          <p>Neural Network Visualizer © {new Date().getFullYear()}</p>
+          <p>Built with <span role="img" aria-label="heart">🧠</span> using React and Flask</p>
+        </Footer>
 
-          {/* Add the ChatbotWidget here */}
-          <ChatbotWidget />
-
-        </AppContainer>
-      </Router>
-    </ThemeProvider>
+        <ChatbotWidget />
+      </AppContainer>
+    </Router>
   );
 };
 

@@ -11,6 +11,8 @@ declare module 'styled-components' {
     darkShadow: string;
     lightText: string;
     neutralText: string;
+    primaryGradient: string;
+    primaryBoxShadow: string;
     colors: {
       primary: string;
       secondary: string;

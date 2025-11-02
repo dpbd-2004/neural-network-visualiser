@@ -1,28 +1,33 @@
+// frontend/src/pages/PredictionPage.tsx
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { predict, getTrainingStatus } from '../services/api';
-import type { PredictionResult, TrainingStatus } from '../types';
-import { NeuralNetworkVisualizer } from '../components/NeuralNetworkVisualizer';
+import { useForm, Controller } from 'react-hook-form';
+import { predict, getModelState } from '../services/api'; // <-- Import getModelState
+import { PredictionFormData, PredictionResult } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
+import NeuralNetworkVisualizer from '../components/NeuralNetworkVisualizer'; // <-- Import Visualizer
 
-// Updated styles for PredictionPage
+// --- Styled Components (No changes, same as before) ---
+
 const PageContainer = styled.div`
   padding: 25px;
-  max-width: 1200px;
+  max-width: 800px;
   margin: 0 auto;
   position: relative;
-  background-color: #050a15;
-  color: #e0e6ff;
+  background-color: ${props => props.theme.background};
+  color: ${props => props.theme.text};
 `;
 
 const PageTitle = styled.h1`
   font-size: 2.5rem;
   text-align: center;
   margin-bottom: 35px;
-  color: #ffffff;
+  color: ${props => props.theme.text};
   position: relative;
   letter-spacing: 1.5px;
-  text-shadow: 0 0 20px rgba(0, 195, 255, 0.6);
+  text-shadow: 0 0 20px ${props => props.theme.colors.primary}90;
   font-weight: 800;
+  transition: text-shadow 0.3s ease;
   
   &::after {
     content: '';
@@ -32,25 +37,22 @@ const PageTitle = styled.h1`
     transform: translateX(-50%);
     width: 120px;
     height: 3px;
-    background: linear-gradient(90deg, #0077ff, #00f7ff, #8300ff);
+    background: ${props => props.theme.primaryGradient};
     border-radius: 3px;
-    box-shadow: 0 0 10px rgba(0, 195, 255, 0.8);
+    box-shadow: 0 0 10px ${props => props.theme.colors.primary}c0;
+    transition: all 0.3s ease;
   }
 `;
 
-const SectionContainer = styled.div`
-  margin-bottom: 30px;
-`;
-
-const FormContainer = styled.div`
-  background-color: rgba(10, 20, 40, 0.8);
+const BaseCard = styled.div`
+  background-color: ${props => props.theme.cardBackground};
   border-radius: 12px;
-  padding: 28px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 60px rgba(0, 100, 255, 0.1);
-  margin-bottom: 30px;
-  border: 1px solid rgba(0, 150, 255, 0.25);
+  padding: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 60px ${props => props.theme.colors.primary}10;
+  border: 1px solid ${props => props.theme.colors.primary}40;
   position: relative;
   overflow: hidden;
+  transition: all 0.3s ease;
   
   &::before {
     content: "";
@@ -59,497 +61,328 @@ const FormContainer = styled.div`
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(to right, transparent, rgba(0, 195, 255, 0.5), transparent);
+    background: linear-gradient(to right, transparent, ${props => props.theme.colors.primary}70, transparent);
+    transition: all 0.3s ease;
   }
 `;
 
-const PredictionForm = styled.form`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+const CardTitle = styled.h2`
+  font-size: 1.5rem;
+  margin-bottom: 25px;
+  color: ${props => props.theme.text};
+  position: relative;
+  display: inline-block;
+  text-shadow: 0 0 10px ${props => props.theme.colors.primary}70;
+  transition: all 0.3s ease;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, ${props => props.theme.colors.primary}, transparent);
+    border-radius: 2px;
+    transition: all 0.3s ease;
+  }
+`;
+
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
   gap: 20px;
 `;
 
 const FormGroup = styled.div`
   display: flex;
   flex-direction: column;
-  margin-bottom: 20px;
 `;
 
 const Label = styled.label`
   font-size: 1rem;
+  color: ${props => props.theme.neutralText};
   margin-bottom: 8px;
-  color: #e0e6ff;
-  font-weight: 500;
+  letter-spacing: 0.5px;
 `;
 
 const Input = styled.input`
   padding: 12px 15px;
-  border: 1px solid rgba(0, 150, 255, 0.3);
   border-radius: 8px;
+  border: 1px solid ${props => props.theme.colors.primary}40;
+  background-color: ${props => props.theme.background};
+  color: ${props => props.theme.text};
   font-size: 1rem;
-  transition: all 0.3s;
-  background-color: rgba(5, 15, 30, 0.7);
-  color: #e0e6ff;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2), 0 0 15px rgba(0, 50, 150, 0.1) inset;
+  transition: all 0.3s ease;
   
   &:focus {
-    border-color: #00c3ff;
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0, 195, 255, 0.25), 0 0 15px rgba(0, 100, 255, 0.2) inset;
+    border-color: ${props => props.theme.colors.primary};
+    box-shadow: 0 0 15px ${props => props.theme.colors.primary}50;
   }
 `;
 
-const ButtonContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-`;
-
-const Button = styled.button<{ disabled?: boolean }>`
-  padding: 12px 25px;
-  background: linear-gradient(135deg, #0052d4, #4364f7, #6fb1fc);
-  color: #ffffff;
-  border: none;
+const Button = styled.button`
+  padding: 14px 20px;
   border-radius: 8px;
-  font-size: 1rem;
+  border: none;
+  background: ${props => props.theme.primaryGradient};
+  color: white;
+  font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+  letter-spacing: 1px;
+  box-shadow: 0 5px 15px ${props => props.theme.colors.primary}30;
   margin-top: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  letter-spacing: 0.5px;
-  position: relative;
-  overflow: hidden;
-  text-shadow: 0 0 10px rgba(0, 100, 255, 0.5);
   
-  &::before {
-    content: "🔍";
-    font-size: 1.2rem;
-  }
-
   &:hover {
-    background: linear-gradient(135deg, #0077ff, #00c3ff);
-    transform: ${props => props.disabled ? 'none' : 'translateY(-3px)'};
-    box-shadow: ${props => props.disabled ? 'none' : '0 6px 15px rgba(0, 0, 0, 0.3), 0 0 20px rgba(0, 120, 255, 0.3)'};
-    
-    &::before {
-      left: 100%;
-    }
+    box-shadow: 0 8px 25px ${props => props.theme.colors.primary}60;
+    transform: translateY(-2px);
   }
   
   &:disabled {
-    opacity: 0.7;
+    background: #555;
     cursor: not-allowed;
-    transform: none;
+    opacity: 0.7;
   }
 `;
 
-const ResultContainer = styled.div`
-  background-color: rgba(10, 20, 40, 0.8);
-  border-radius: 12px;
-  padding: 28px;
-  margin-top: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 60px rgba(0, 100, 255, 0.1);
-  border: 1px solid rgba(0, 150, 255, 0.25);
-  position: relative;
-  
-  h2 {
-    font-size: 1.8rem;
-    margin-bottom: 20px;
-    color: #e0e6ff;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    letter-spacing: 1px;
-    text-shadow: 0 0 10px rgba(0, 195, 255, 0.5);
-    
-    &::before {
-      content: '🎯';
-      font-size: 1.5rem;
-    }
-  }
-`;
-
-const PredictionResult = styled.div<{ prediction: number }>`
-  font-size: 1.8rem;
-  margin: 25px 0;
-  padding: 20px;
-  border-radius: 10px;
+const ErrorMessage = styled.div`
+  color: ${props => props.theme.colors.danger};
+  background-color: ${props => props.theme.colors.danger}15;
+  border: 1px solid ${props => props.theme.colors.danger};
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 15px;
   text-align: center;
-  background-color: ${props => props.prediction === 1 ? 'rgba(0, 200, 100, 0.2)' : 'rgba(255, 50, 50, 0.2)'};
-  border: 2px solid ${props => props.prediction === 1 ? 'rgba(0, 200, 100, 0.5)' : 'rgba(255, 50, 50, 0.5)'};
-  color: ${props => props.prediction === 1 ? '#4caf50' : '#f44336'};
-  font-weight: bold;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+`;
+
+const ResultContainer = styled(BaseCard)`
+  margin-top: 30px;
+  text-align: center;
+`;
+
+const ResultLabel = styled.h2<{ $color: string }>`
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: ${props => props.$color};
+  text-shadow: 0 0 20px ${props => props.$color}80;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+`;
+
+const ResultProbability = styled.p`
+  font-size: 1.2rem;
+  color: ${props => props.theme.neutralText};
+  margin-bottom: 25px;
   
   span {
-    font-size: 3rem;
-    margin-bottom: 10px;
+    font-weight: bold;
+    color: ${props => props.theme.text};
   }
 `;
 
-const VisualizationContainer = styled.div`
-  margin-top: 30px;
-  width: 100%;
-  
-  h3 {
-    font-size: 1.5rem;
-    text-align: center;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    color: #e0e6ff;
-    text-shadow: 0 0 10px rgba(0, 150, 255, 0.3);
-    
-    &::before {
-      content: "🧠";
-      font-size: 1.3rem;
-    }
-  }
-`;
-
-const ProbabilityContainer = styled.div`
-  margin-top: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-`;
-
-const ProbabilityLabel = styled.div`
-  font-weight: 500;
-  margin-bottom: 10px;
-  color: #c0c6ee;
-`;
-
-const ProbabilityBar = styled.div`
-  width: 100%;
-  height: 25px;
-  background-color: rgba(5, 15, 30, 0.7);
-  border-radius: 12px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 150, 255, 0.2);
-  margin-bottom: 5px;
-`;
-
-const ProbabilityFill = styled.div<{ width: number }>`
-  height: 100%;
-  width: ${props => props.width}%;
-  background: linear-gradient(90deg, #0077ff, #00c3ff);
-  border-radius: 12px;
-  transition: width 0.5s ease-out;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: bold;
-  font-size: 0.9rem;
-  text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-  
-  &::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.2),
-      transparent
-    );
-    animation: wave 2s infinite linear;
-  }
-  
-  @keyframes wave {
-    0% {
-      transform: translateX(-100%);
-    }
-    100% {
-      transform: translateX(100%);
-    }
-  }
-`;
-
-const InputDetails = styled.div`
-  margin-top: 20px;
-  background-color: rgba(5, 15, 30, 0.7);
-  border-radius: 10px;
-  padding: 15px;
-  border: 1px solid rgba(0, 150, 255, 0.2);
+const ResultDetails = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 15px;
-`;
-
-const DetailItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  
-  label {
-    font-size: 0.9rem;
-    color: #a0a6ce;
-    margin-bottom: 5px;
-  }
+  text-align: left;
+  font-size: 0.9rem;
+  color: ${props => props.theme.neutralText};
   
   span {
-    font-family: 'Roboto Mono', monospace;
-    color: #e0e6ff;
-    font-size: 1.1rem;
+    font-weight: 600;
+    color: ${props => props.theme.text};
+    margin-right: 5px;
+    text-transform: capitalize;
   }
 `;
 
-const NoticeContainer = styled.div`
-  background-color: rgba(10, 20, 40, 0.8);
-  border-left: 4px solid #00c3ff;
-  padding: 20px;
-  margin: 20px 0;
-  border-radius: 8px;
-  text-align: center;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  color: #e0e6ff;
+// --- NEW Visualizer container ---
+const VisualizerContainer = styled(BaseCard)`
+  margin-top: 30px;
+`;
+
+
+// --- Dynamic Form Component ---
+const PredictionForm: React.FC<{
+  mode: 'classification' | 'regression',
+  onSubmit: (data: PredictionFormData) => void,
+  loading: boolean
+}> = ({ mode, onSubmit, loading }) => {
   
-  &::before {
-    content: "💡";
-    font-size: 1.5rem;
-    margin-right: 10px;
-  }
-`;
-
-const ErrorContainer = styled.div`
-  color: #f44336;
-  text-align: center;
-  padding: 20px;
-  border: 1px solid rgba(255, 50, 50, 0.5);
-  border-radius: 8px;
-  margin: 20px auto;
-  max-width: 600px;
-  background-color: rgba(255, 50, 50, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
+  const isClassification = mode === 'classification';
   
-  &::before {
-    content: "⚠️";
-    font-size: 1.5rem;
-  }
-`;
-
-const ResultHeader = styled.h2`
-  font-size: 1.8rem;
-  margin-bottom: 20px;
-  color: #e0e6ff;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  letter-spacing: 1px;
-  text-shadow: 0 0 10px rgba(0, 195, 255, 0.5);
+  // Define form fields based on mode
+  const fields = isClassification ?
+    [
+      { name: 'cgpa', label: 'CGPA (1.0 - 10.0)', rules: { required: true, min: 1.0, max: 10.0 }, step: 0.1 },
+      { name: 'iq', label: 'IQ (1 - 200)', rules: { required: true, min: 1, max: 200 }, step: 1 }
+    ] :
+    [
+      { name: 'studytime_hours', label: 'Study Time (Hours)', rules: { required: true, min: 0, max: 24 }, step: 0.5 },
+      { name: 'goout_hours', label: 'Go Out Time (Hours)', rules: { required: true, min: 0, max: 40 }, step: 0.5 }
+    ];
   
-  &::before {
-    content: '🎯';
-    font-size: 1.5rem;
-  }
-`;
+  const defaultValues = isClassification ? { cgpa: 8.0, iq: 100 } : { studytime_hours: 5, goout_hours: 10 };
 
-const ResultContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-`;
-
-const PredictionPage: React.FC = () => {
-  // Form state
-  const [formData, setFormData] = useState({
-    cgpa: 6.5,
-    iq: 120,
+  const { control, handleSubmit, formState: { errors } } = useForm<PredictionFormData>({
+    defaultValues: defaultValues,
+    key: mode // <-- Add key to force re-render on mode change
   });
 
-  // Prediction state
-  const [predictionResult, setPredictionResult] = useState<PredictionResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  return (
+    <Form onSubmit={handleSubmit(onSubmit)}>
+      {fields.map(field => (
+        <FormGroup key={field.name}>
+          <Label htmlFor={field.name}>{field.label}</Label>
+          <Controller
+            name={field.name}
+            control={control}
+            rules={field.rules}
+            render={({ field: controllerField }) => (
+              <Input
+                {...controllerField}
+                type="number"
+                step={field.step}
+                id={field.name}
+                disabled={loading}
+                onChange={(e) => controllerField.onChange(parseFloat(e.target.value))} // Ensure value is number
+              />
+            )}
+          />
+          {errors[field.name] && <ErrorMessage>{`${field.name} is required (${field.rules.min} - ${field.rules.max}).`}</ErrorMessage>}
+        </FormGroup>
+      ))}
+      <Button type="submit" disabled={loading}>
+        {loading ? 'Predicting...' : (isClassification ? 'Predict Placement' : 'Predict Grade')}
+      </Button>
+    </Form>
+  );
+};
+
+const PredictionPage: React.FC = () => {
+  const { modelMode, theme } = useTheme(); // <-- Get mode and theme
+  const [result, setResult] = useState<PredictionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   
-  // Training status
-  const [trainingStatus, setTrainingStatus] = useState<TrainingStatus | null>(null);
-  const [isModelTrained, setIsModelTrained] = useState(false);
+  // --- THIS IS THE NEW FEATURE ---
+  // State to hold the model's parameters
+  const [networkParams, setNetworkParams] = useState<{ weights: any, biases: any } | null>(null);
+  // --- END NEW FEATURE ---
 
-  // Check if model is trained
+  const isClassification = modelMode === 'classification';
+
+  // Clear results when mode changes
   useEffect(() => {
-    const checkTrainingStatus = async () => {
-      try {
-        const status = await getTrainingStatus();
-        setTrainingStatus(status);
-        setIsModelTrained(status.progress_percentage === 100);
-      } catch (error) {
-        console.error('Failed to check training status:', error);
-      }
-    };
-
-    checkTrainingStatus();
-  }, []);
-
-  // Handle form input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: parseFloat(value),
-    });
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    setIsLoading(true);
+    setResult(null);
     setError(null);
-    
+    setNetworkParams(null); // <-- Clear params on mode change
+  }, [modelMode]);
+
+  const onSubmit = async (data: PredictionFormData) => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setNetworkParams(null); // <-- Clear params on new prediction
+
     try {
-      const result = await predict(formData);
-      setPredictionResult(result);
-    } catch (error) {
-      console.error('Prediction error:', error);
-      setError('Failed to make prediction. Please ensure the model has been trained.');
-      setPredictionResult(null);
+      // 1. Make the prediction
+      const response = await predict(data, modelMode);
+      setResult(response);
+      
+      // 2. --- THIS IS THE NEW FEATURE ---
+      // If prediction is successful, fetch the model state
+      try {
+        const modelState = await getModelState(modelMode);
+        setNetworkParams({
+          weights: modelState.weights,
+          biases: modelState.biases,
+        });
+      } catch (modelErr) {
+        console.error("Failed to fetch model state:", modelErr);
+        // Don't show an error, just fail to show the visualizer
+      }
+      // --- END NEW FEATURE ---
+
+    } catch (err) {
+      setError((err as Error).message || 'Failed to get prediction.');
+      if ((err as Error).message.includes('Model not trained')) {
+        setError(`Please train the ${modelMode} model on the "Training" page first.`);
+      }
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
+  // Determine result color
+  let resultColor = theme.colors.primary;
+  if (result) {
+    if (isClassification) {
+      resultColor = result.prediction === 1 ? theme.colors.success : theme.colors.danger;
+    } else {
+      resultColor = theme.colors.primary; // Always primary red/blue for regression result
+    }
+  }
+
   return (
     <PageContainer>
-      <PageTitle>Test Your Data</PageTitle>
-
-      <SectionContainer>
-        <FormContainer>
-          <PredictionForm onSubmit={handleSubmit}>
-            <FormGroup>
-              <Label htmlFor="cgpa">CGPA</Label>
-              <Input
-                type="number"
-                id="cgpa"
-                name="cgpa"
-                min="0"
-                max="10"
-                step="0.1"
-                value={formData.cgpa}
-                onChange={handleInputChange}
-                disabled={isLoading}
-              />
-            </FormGroup>
-
-            <FormGroup>
-              <Label htmlFor="iq">IQ Score</Label>
-              <Input
-                type="number"
-                id="iq"
-                name="iq"
-                min="0"
-                max="250"
-                step="1"
-                value={formData.iq}
-                onChange={handleInputChange}
-                disabled={isLoading}
-              />
-            </FormGroup>
-
-            <ButtonContainer>
-              <Button
-                type="submit"
-                disabled={isLoading || !isModelTrained}
-              >
-                {isLoading ? 'Predicting...' : 'Make Prediction'}
-              </Button>
-            </ButtonContainer>
-          </PredictionForm>
-
-          {!isModelTrained && (
-            <NoticeContainer>
-              Please complete training before testing input data.
-            </NoticeContainer>
+      <PageTitle>Test Your {isClassification ? 'Classification' : 'Regression'} Model</PageTitle>
+      
+      <BaseCard>
+        <CardTitle>Enter Your Data</CardTitle>
+        <PredictionForm
+          mode={modelMode}
+          onSubmit={onSubmit}
+          loading={loading}
+        />
+      </BaseCard>
+      
+      {error && <ErrorMessage style={{ marginTop: '30px' }}>{error}</ErrorMessage>}
+      
+      {result && (
+        <ResultContainer>
+          <CardTitle>Prediction Result</CardTitle>
+          <ResultLabel $color={resultColor}>
+            {isClassification ? result.label : result.prediction_label}
+          </ResultLabel>
+          
+          {isClassification && result.probability !== undefined && (
+            <ResultProbability>
+              Confidence Score (Probability): <span>{(result.probability * 100).toFixed(2)}%</span>
+            </ResultProbability>
           )}
-        </FormContainer>
-      </SectionContainer>
-
-      {error && (
-        <ErrorContainer>{error}</ErrorContainer>
+          
+          <ResultDetails>
+            {Object.entries(result.input).map(([key, value]) => (
+              <div key={key}><span>{key.replace(/_/g, ' ')}:</span> {value}</div>
+            ))}
+            {Object.entries(result.scaled_input).map(([key, value]) => (
+              <div key={`scaled-${key}`}><span>Scaled {key.replace(/_/g, ' ')}:</span> {value.toFixed(4)}</div>
+            ))}
+          </ResultDetails>
+        </ResultContainer>
       )}
-
-      {predictionResult && (
-        <SectionContainer>
-          <ResultContainer>
-            <ResultHeader>Prediction Result</ResultHeader>
-            <ResultContent>
-              <PredictionResult prediction={predictionResult.prediction}>
-                <span>{predictionResult.prediction === 1 ? '✅' : '❌'}</span>
-                {predictionResult.label}
-              </PredictionResult>
-              
-              <ProbabilityContainer>
-                <ProbabilityLabel>Prediction Probability</ProbabilityLabel>
-                <ProbabilityBar>
-                  <ProbabilityFill width={predictionResult.probability * 100}>
-                    {(predictionResult.probability * 100).toFixed(1)}%
-                  </ProbabilityFill>
-                </ProbabilityBar>
-              </ProbabilityContainer>
-              
-              <InputDetails>
-                <DetailItem>
-                  <label>Input CGPA</label>
-                  <span>{predictionResult.input.cgpa.toFixed(1)}</span>
-                </DetailItem>
-                <DetailItem>
-                  <label>Input IQ</label>
-                  <span>{predictionResult.input.iq.toFixed(0)}</span>
-                </DetailItem>
-                <DetailItem>
-                  <label>Scaled CGPA</label>
-                  <span>{predictionResult.scaled_input.cgpa.toFixed(3)}</span>
-                </DetailItem>
-                <DetailItem>
-                  <label>Scaled IQ</label>
-                  <span>{predictionResult.scaled_input.iq.toFixed(3)}</span>
-                </DetailItem>
-              </InputDetails>
-
-              {trainingStatus?.current_weights && trainingStatus?.current_biases && (
-                <VisualizationContainer>
-                  <h3>Neural Network State</h3>
-                  <NeuralNetworkVisualizer
-                    weights={trainingStatus.current_weights}
-                    biases={trainingStatus.current_biases}
-                    inputValues={[predictionResult.scaled_input.cgpa, predictionResult.scaled_input.iq]}
-                    width={700}
-                    height={350}
-                    epoch={1}
-                    showWeightsOnArrows={true}
-                  />
-                </VisualizationContainer>
-              )}
-            </ResultContent>
-          </ResultContainer>
-        </SectionContainer>
+      
+      {/* --- THIS IS THE NEW FEATURE --- */}
+      {/* Render the visualizer if we have a result AND network params */}
+      {result && networkParams && (
+        <VisualizerContainer>
+          <CardTitle>Model State (Final Weights & Biases)</CardTitle>
+          <NeuralNetworkVisualizer
+            weights={networkParams.weights}
+            biases={networkParams.biases}
+            mode={modelMode}
+          />
+        </VisualizerContainer>
       )}
+      {/* --- END NEW FEATURE --- */}
+      
     </PageContainer>
   );
 };
 
-export default PredictionPage; 
+export default PredictionPage;

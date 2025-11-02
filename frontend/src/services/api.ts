@@ -1,3 +1,4 @@
+// frontend/src/services/api.ts
 import axios from 'axios';
 import {
   ApiResponse,
@@ -12,35 +13,32 @@ import {
   SessionData,
   TrainingFormData,
   PredictionFormData,
-  ChatResponse
+  ChatResponse // Added this in last step
 } from '../types';
+import { ModelMode } from '../contexts/ThemeContext'; // <-- Import ModelMode
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
-// Create axios instance
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// EDA endpoints
-export const fetchEDA = async (): Promise<EDAData> => {
-  const response = await api.get<ApiResponse<EDAData>>('/api/eda');
+// --- Update all relevant functions ---
+
+export const fetchEDA = async (mode: ModelMode): Promise<EDAData> => {
+  const response = await api.get<ApiResponse<EDAData>>(`/api/eda?mode=${mode}`);
   if (response.data.success && response.data.data) {
     return response.data.data;
   }
   throw new Error(response.data.message || 'Failed to fetch EDA data');
 };
 
-// Training endpoints
-export const startTraining = async (formData: TrainingFormData): Promise<string> => {
+export const startTraining = async (formData: TrainingFormData, mode: ModelMode): Promise<string> => {
   try {
-    // Always add a fixed hidden_units = 2 since the architecture is hardcoded in the backend
     const response = await api.post<TrainResponse>('/api/train', {
       ...formData,
-      hidden_units: 2 // Fixed value to match [2,2,1] architecture
+      mode: mode, // <-- Send mode in request body
     });
 
     if (response.data.success) {
@@ -54,71 +52,55 @@ export const startTraining = async (formData: TrainingFormData): Promise<string>
   }
 };
 
-export const getTrainingStatus = async (): Promise<TrainingStatus> => {
-  const response = await api.get<ApiResponse<TrainingStatus>>('/api/train/status');
+export const getTrainingStatus = async (mode: ModelMode): Promise<TrainingStatus> => {
+  const response = await api.get<ApiResponse<TrainingStatus>>(`/api/train/status?mode=${mode}`);
   if (response.data.success && response.data.data) {
     return response.data.data;
   }
   throw new Error(response.data.message || 'Failed to fetch training status');
 };
 
-// Prediction endpoints
-export const predict = async (formData: PredictionFormData): Promise<PredictionResult> => {
-  const response = await api.post<ApiResponse<PredictionResult>>('/api/predict', formData);
+export const predict = async (formData: PredictionFormData, mode: ModelMode): Promise<PredictionResult> => {
+  const response = await api.post<ApiResponse<PredictionResult>>('/api/predict', {
+    ...formData,
+    mode: mode, // <-- Send mode in request body
+  });
   if (response.data.success && response.data.data) {
     return response.data.data;
   }
   throw new Error(response.data.message || 'Failed to make prediction');
 };
 
-// Evaluation endpoints
-export const evaluate = async (): Promise<EvaluationResult> => {
-  const response = await api.get<ApiResponse<EvaluationResult>>('/api/evaluate');
+export const evaluate = async (mode: ModelMode): Promise<EvaluationResult> => {
+  const response = await api.get<ApiResponse<EvaluationResult>>(`/api/evaluate?mode=${mode}`);
   if (response.data.success && response.data.data) {
     return response.data.data;
   }
   throw new Error(response.data.message || 'Failed to evaluate model');
 };
 
-// Model endpoints
-export const saveModel = async (): Promise<SaveModelResponse['data']> => {
-  const response = await api.get<SaveModelResponse>('/api/save-model');
-  if (response.data.success && response.data.data) {
-    return response.data.data;
-  }
-  throw new Error('Failed to save model');
-};
-
-export const getModelState = async (): Promise<{
+export const getModelState = async (mode: ModelMode): Promise<{
   weights: any;
   biases: any;
-  decision_boundary?: {
-    epoch: number;
-    image: string;
-  };
+  decision_boundary?: { epoch: number; image: string; };
+  prediction_surface?: { epoch: number; image: string; }; // <-- Add new surface
 }> => {
-  const response = await api.get<ApiResponse<{
-    weights: any;
-    biases: any;
-    decision_boundary?: {
-      epoch: number;
-      image: string;
-    };
-  }>>('/api/model/state');
+  const response = await api.get<ApiResponse<any>>(`/api/model/state?mode=${mode}`);
   if (response.data.success && response.data.data) {
     return response.data.data;
   }
   throw new Error('Failed to fetch model state');
 };
 
+// --- Unchanged functions ---
+
 export const loadModel = async (file: File): Promise<void> => {
+  // This would need to be mode-aware if you use it
   const formData = new FormData();
   formData.append('model_file', file);
   
   const response = await api.post<LoadModelResponse>('/api/load-model', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    headers: { 'Content-Type': 'multipart/form-data' },
   });
   
   if (!response.data.success) {
@@ -126,8 +108,17 @@ export const loadModel = async (file: File): Promise<void> => {
   }
 };
 
-// Session endpoints
+export const saveModel = async (mode: ModelMode): Promise<SaveModelResponse['data']> => {
+  // This would need to be mode-aware
+  const response = await api.get<SaveModelResponse>(`/api/save-model?mode=${mode}`);
+  if (response.data.success && response.data.data) {
+    return response.data.data;
+  }
+  throw new Error('Failed to save model');
+};
+
 export const getSessions = async (): Promise<SessionsResponse['data']> => {
+  // This would need to be mode-aware
   const response = await api.get<SessionsResponse>('/api/sessions');
   if (response.data.success && response.data.data) {
     return response.data.data;
@@ -136,6 +127,7 @@ export const getSessions = async (): Promise<SessionsResponse['data']> => {
 };
 
 export const replaySession = async (sessionId: string): Promise<SessionData> => {
+  // This would need to be mode-aware
   const response = await api.get<ApiResponse<SessionData>>(`/api/replay-session/${sessionId}`);
   if (response.data.success && response.data.data) {
     return response.data.data;
@@ -143,7 +135,6 @@ export const replaySession = async (sessionId: string): Promise<SessionData> => 
   throw new Error(response.data.message || 'Failed to replay session');
 };
 
-// --- New Chatbot API Function ---
 export const sendMessage = async (message: string): Promise<ChatResponse> => {
   try {
     const response = await api.post<ChatResponse>('/api/chat', { message });
@@ -151,10 +142,8 @@ export const sendMessage = async (message: string): Promise<ChatResponse> => {
   } catch (error) {
     console.error('Error sending message:', error);
     if (axios.isAxiosError(error) && error.response) {
-      // Return the error structure from the backend if available
       return error.response.data as ChatResponse;
     }
     return { success: false, message: 'Failed to connect to the chat service.' };
   }
 };
-// --- End New Chatbot API Function ---
