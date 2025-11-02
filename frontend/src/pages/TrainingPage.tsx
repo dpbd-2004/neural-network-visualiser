@@ -1,6 +1,6 @@
 // frontend/src/pages/TrainingPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { useForm, Controller } from 'react-hook-form';
 import { Line } from 'react-chartjs-2';
 import {
@@ -17,7 +17,7 @@ import { startTraining, getTrainingStatus, getModelState } from '../services/api
 import { TrainingFormData, TrainingStatus } from '../types';
 import NeuralNetworkVisualizer from '../components/NeuralNetworkVisualizer';
 import { useTheme } from '../contexts/ThemeContext';
-import ParametersDisplay from '../components/ParametersDisplay'; // <-- Import new component
+import ParametersDisplay from '../components/ParametersDisplay'; 
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend
@@ -268,11 +268,11 @@ const ErrorMessage = styled.div`
   text-align: center;
 `;
 
-// --- NEW Component for Epoch Stats ---
 const EpochStats = styled.div`
   display: flex;
   justify-content: space-around;
   text-align: center;
+  margin-bottom: 20px; /* Added margin */
 `;
 
 const EpochStatItem = styled.div`
@@ -287,11 +287,75 @@ const EpochStatItem = styled.div`
     transition: color 0.3s ease;
   }
 `;
-// --- End New Component ---
 
+// --- NEW Live Parameters Component ---
+
+const ParameterGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 15px;
+`;
+
+const ParameterCell = styled.div<{ $value: number }>`
+  background-color: ${props => props.theme.background};
+  border: 1px solid ${props => props.theme.border};
+  border-radius: 6px;
+  padding: 8px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  
+  span:first-child {
+    color: ${props => props.theme.neutralText};
+    font-weight: 500;
+  }
+
+  span:last-child {
+    font-weight: 600;
+    color: ${props => props.$value >= 0 ? props.theme.colors.primary : props.theme.colors.danger};
+  }
+`;
+
+// Helper component to render the 9 parameters
+const LiveParameters: React.FC<{ weights: any, biases: any }> = ({ weights, biases }) => {
+  if (!weights || !weights.W1 || !weights.W2 || !biases || !biases.b1 || !biases.b2) {
+    return <StatusText>Initializing parameters...</StatusText>;
+  }
+
+  // Flatten the parameters based on the network structure
+  // This matches the screenshot: 6 weights, 3 biases
+  const params = [
+    { label: 'w1', value: weights.W1[0][0] },
+    { label: 'w2', value: weights.W1[0][1] },
+    { label: 'w3', value: weights.W1[1][0] },
+    { label: 'w4', value: weights.W1[1][1] },
+    { label: 'w5', value: weights.W2[0][0] },
+    { label: 'w6', value: weights.W2[1][0] },
+    { label: 'b1', value: biases.b1[0][0] },
+    { label: 'b2', value: biases.b1[1][0] },
+    { label: 'b3', value: biases.b2[0][0] },
+  ];
+
+  return (
+    <ParameterGrid>
+      {params.map(p => (
+        <ParameterCell key={p.label} $value={p.value}>
+          <span>{p.label}</span>
+          <span>{p.value.toFixed(3)}</span>
+        </ParameterCell>
+      ))}
+    </ParameterGrid>
+  );
+};
+
+
+// --- Main Training Page Component ---
 
 const TrainingPage: React.FC = () => {
-  const { modelMode, theme } = useTheme(); // <-- Get mode and theme
+  const { modelMode, theme } = useTheme();
   const isClassification = modelMode === 'classification';
 
   const { control, handleSubmit, formState: { errors }, watch } = useForm<TrainingFormData>({
@@ -309,7 +373,6 @@ const TrainingPage: React.FC = () => {
   const [plotImage, setPlotImage] = useState<string | null>(null);
   const [networkParams, setNetworkParams] = useState<{ weights: any, biases: any } | null>(null);
   
-  // Use 'watch' to get live value from form for the total epochs display
   const watchedEpochs = watch('epochs');
   const [totalEpochs, setTotalEpochs] = useState(watchedEpochs);
 
@@ -332,9 +395,9 @@ const TrainingPage: React.FC = () => {
 
   // Function to fetch initial model state
   const fetchInitialState = async () => {
-    resetAllState(); // Clear state before fetching
+    resetAllState(); 
     try {
-      const state = await getModelState(modelMode); // <-- Pass mode
+      const state = await getModelState(modelMode);
       setNetworkParams({
         weights: state.weights,
         biases: state.biases,
@@ -355,7 +418,6 @@ const TrainingPage: React.FC = () => {
     fetchInitialState();
   }, [modelMode]);
   
-  // Update total epochs when form value changes
   useEffect(() => {
     setTotalEpochs(watchedEpochs);
   }, [watchedEpochs]);
@@ -364,7 +426,7 @@ const TrainingPage: React.FC = () => {
   // Polling function
   const pollStatus = async () => {
     try {
-      const status = await getTrainingStatus(modelMode); // <-- Pass mode
+      const status = await getTrainingStatus(modelMode);
       setTrainingStatus(status);
       setError(status.error || null);
 
@@ -405,11 +467,21 @@ const TrainingPage: React.FC = () => {
 
   // Form submission handler
   const onSubmit = async (data: TrainingFormData) => {
-    // Reset state for new training run
     resetAllState();
     setIsTraining(true);
-    setTotalEpochs(data.epochs); // <-- Set total epochs
+    setTotalEpochs(data.epochs); 
     
+    // Fetch initial state again right before training to get base weights
+    try {
+      const initialState = await getModelState(modelMode);
+      setNetworkParams({
+        weights: initialState.weights,
+        biases: initialState.biases,
+      });
+    } catch (err) {
+      console.error("Failed to fetch initial state:", err);
+    }
+
     setTrainingStatus({
       is_training: true, epoch: 0, total_epochs: data.epochs,
       loss: 0, progress_percentage: 0,
@@ -417,7 +489,7 @@ const TrainingPage: React.FC = () => {
     });
 
     try {
-      await startTraining(data, modelMode); // <-- Pass mode
+      await startTraining(data, modelMode); 
       pollIntervalRef.current = setInterval(pollStatus, 1000);
     } catch (err) {
       console.error('Failed to start training:', err);
@@ -546,7 +618,7 @@ const TrainingPage: React.FC = () => {
             {error && <ErrorMessage>{error}</ErrorMessage>}
           </BaseCard>
 
-          {/* --- ADDED CARD: Neural Network Parameters --- */}
+          {/* --- MODIFIED CARD: Neural Network Parameters --- */}
           <BaseCard>
             <CardTitle>Neural Network Parameters</CardTitle>
             <EpochStats>
@@ -559,6 +631,13 @@ const TrainingPage: React.FC = () => {
                 Total Epochs
               </EpochStatItem>
             </EpochStats>
+            {/* --- ADDED LIVE PARAMETERS --- */}
+            {networkParams && (
+              <LiveParameters 
+                weights={networkParams.weights} 
+                biases={networkParams.biases} 
+              />
+            )}
           </BaseCard>
         </LeftColumn>
         
@@ -576,10 +655,10 @@ const TrainingPage: React.FC = () => {
             )}
           </BaseCard>
           
-          {/* --- ADDED CARD: Weights and Biases --- */}
+          {/* --- MODIFIED CARD: Weights and Biases (Text) --- */}
           {networkParams && (
             <BaseCard>
-              <CardTitle>Weights & Biases (Text)</CardTitle>
+              <CardTitle>Weights & Biases (Matrix View)</CardTitle>
               <ParametersDisplay
                 weights={networkParams.weights}
                 biases={networkParams.biases}

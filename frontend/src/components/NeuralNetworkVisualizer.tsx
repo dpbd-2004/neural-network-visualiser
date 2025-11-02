@@ -1,17 +1,28 @@
 // frontend/src/components/NeuralNetworkVisualizer.tsx
 import React, { useRef, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useTheme, ModelMode } from '../contexts/ThemeContext'; // <-- Import our theme and mode
+import { useTheme } from '../contexts/ThemeContext'; // Import useTheme
 
-// --- Types ---
+// Types
 type NeuronType = 'input' | 'hidden' | 'output';
+type ModelMode = 'classification' | 'regression';
 
 interface Neuron {
   id: string;
   type: NeuronType;
+  value: number;
   bias: number | null;
+  label: string; // Added for input/output labels
+  layerIndex: number;
+  neuronIndex: number;
   x: number;
   y: number;
+  outgoingConnections: Connection[];
+}
+
+interface Layer {
+  id: string;
+  neurons: Neuron[];
 }
 
 interface Connection {
@@ -19,290 +30,466 @@ interface Connection {
   targetId: string;
   weight: number;
   id: string;
+  to?: Neuron;
 }
 
 interface NetworkArchitecture {
-  layers: Neuron[][];
+  layers: Layer[];
   connections: Connection[];
 }
 
+// Define the proper types for weights and biases
 interface NeuralNetworkVisualizerProps {
   weights: Record<string, number[][]>;
   biases: Record<string, number[][]>;
-  mode: ModelMode; // <-- Added mode prop
-  epoch?: number;
+  mode: ModelMode; // Added mode prop
+  inputValues?: number[];
 }
 
-// --- Styled Components (from bhaskar-nie, adapted for our theme) ---
+// --- Enhanced Styling Constants ---
+const NeuronRadius = 28;
+const ConnectionWidth = 2;
+const GlowRadius = 15;
+const LabelColor = '#E0E0E0';
+const ValueColor = '#FFFFFF';
+const FontFace = 'Roboto Mono, monospace';
 
+// Enhanced styled components
 const VisualizerContainer = styled.div`
   width: 100%;
-  background-color: ${props => props.theme.cardBackground};
+  position: relative;
+  background-color: ${props => props.theme.background};
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 8px 24px ${props => props.theme.darkShadow};
+  box-shadow: 0 8px 24px ${props => props.theme.darkShadow}, 
+              inset 0 0 20px ${props => props.theme.background}80;
+  border: 1px solid ${props => props.theme.colors.primary}40;
   transition: all 0.3s ease;
-`;
-
-const VisualizationTitle = styled.h2`
-  font-size: 1.4rem;
-  margin-bottom: 20px;
-  color: ${props => props.theme.text}; // Use theme text
-  text-align: center;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  
-  @media (max-width: 768px) {
-    font-size: 1.2rem;
-  }
+  overflow: hidden; /* Ensure glow doesn't leak out */
 `;
 
 const CanvasContainer = styled.div`
   width: 100%;
+  height: 300px; /* Give canvas a fixed height */
   position: relative;
   border-radius: 8px;
   overflow: hidden;
-  background-color: ${props => props.theme.background}; // Use theme background
-  box-shadow: inset 0 0 10px ${props => props.theme.darkShadow};
+  background-color: ${props => props.theme.background === '#121212' ? '#0A0A0A' : '#F4F6F8'};
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.3);
   
   canvas {
     width: 100%;
+    height: 100%;
     display: block;
-    margin: 0 auto;
-    min-height: 350px;
   }
 `;
 
-// --- Canvas Drawing Logic ---
-
-const NeuronRadius = 25;
-
-// Static colors (Green/Red for weights, Blue/Red for bias)
-const colors = {
-  weightPositive: 'rgba(0, 255, 136, 0.7)',
-  weightNegative: 'rgba(255, 85, 102, 0.7)',
-  biasPositive: '#00c3ff',
-  biasNegative: '#ff5566',
-  neuronBorder: '#ffffff',
-  labelColor: '#ffffff',
-  inputNeuron: '#444444', // Neutral input
-};
-
-// Build the network architecture from weights and biases
-const buildNetworkArchitecture = (
-  weights: Record<string, number[][]>,
-  biases: Record<string, number[][]>,
-  mode: ModelMode
-): NetworkArchitecture => {
-  const layers: Neuron[][] = [];
-  const connections: Connection[] = [];
-
-  const inputLabels = mode === 'classification' ? ['CGPA', 'IQ'] : ['Study', 'Go Out'];
-  const outputLabel = mode === 'classification' ? 'Placed' : 'Grade';
-
-  // --- Create Neurons ---
-  // Input Layer
-  const inputNeurons: Neuron[] = [
-    { id: 'i1', type: 'input', bias: 0, x: 0, y: 0, },
-    { id: 'i2', type: 'input', bias: 0, x: 0, y: 0, }
-  ];
-  layers.push(inputNeurons);
-
-  // Hidden Layer
-  const hiddenNeurons: Neuron[] = [
-    { id: 'h1', type: 'hidden', bias: biases.b1[0][0], x: 0, y: 0, },
-    { id: 'h2', type: 'hidden', bias: biases.b1[1][0], x: 0, y: 0, }
-  ];
-  layers.push(hiddenNeurons);
-
-  // Output Layer
-  const outputNeurons: Neuron[] = [
-    { id: 'o1', type: 'output', bias: biases.b2[0][0], x: 0, y: 0, }
-  ];
-  layers.push(outputNeurons);
-
-  // --- Create Connections ---
-  // Input to Hidden (W1)
-  // w11 (i1 -> h1)
-  connections.push({ id: 'w1', sourceId: 'i1', targetId: 'h1', weight: weights.W1[0][0] });
-  // w12 (i2 -> h1)
-  connections.push({ id: 'w2', sourceId: 'i2', targetId: 'h1', weight: weights.W1[0][1] });
-  // w21 (i1 -> h2)
-  connections.push({ id: 'w3', sourceId: 'i1', targetId: 'h2', weight: weights.W1[1][0] });
-  // w22 (i2 -> h2)
-  connections.push({ id: 'w4', sourceId: 'i2', targetId: 'h2', weight: weights.W1[1][1] });
-
-  // Hidden to Output (W2)
-  // w31 (h1 -> o1)
-  connections.push({ id: 'w5', sourceId: 'h1', targetId: 'o1', weight: weights.W2[0][0] });
-  // w32 (h2 -> o1)
-  connections.push({ id: 'w6', sourceId: 'h2', targetId: 'o1', weight: weights.W2[1][0] });
-
-  return { layers, connections };
-};
-
-// Calculate positions
-const calculateNeuronPositions = (layers: Neuron[][], width: number, height: number): void => {
-  const layerSpacing = (width - 100) / (layers.length - 1);
-  layers.forEach((layer, layerIndex) => {
-    const layerX = 50 + layerIndex * layerSpacing;
-    const neuronSpacing = height / (layer.length + 1);
-    layer.forEach((neuron, neuronIndex) => {
-      neuron.x = layerX;
-      neuron.y = (neuronIndex + 1) * neuronSpacing;
-    });
-  });
-};
-
-// Draw Neuron
-const drawNeuron = (ctx: CanvasRenderingContext2D, neuron: Neuron, label: string) => {
-  ctx.beginPath();
-  ctx.arc(neuron.x, neuron.y, NeuronRadius, 0, 2 * Math.PI);
+const DebugConsole = styled.div`
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 250px;
+  max-height: 100px;
+  overflow-y: auto;
+  background-color: rgba(0, 0, 0, 0.7);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: ${FontFace};
+  font-size: 0.7rem;
+  color: #00FF88;
+  z-index: 10;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
   
-  // Fill (theme aware)
-  ctx.fillStyle = ctx.canvas.dataset.themeBackground || '#121212';
-  ctx.fill();
+  &:hover {
+    opacity: 1;
+  }
+  
+  scrollbar-width: thin;
+  
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-thumb {
+    background-color: #00FF88;
+    border-radius: 2px;
+  }
+`;
 
-  // Border
-  if (neuron.type === 'input') {
-    ctx.strokeStyle = colors.inputNeuron;
-    ctx.lineWidth = 3;
+const ConsoleLine = styled.div`
+  margin-bottom: 4px;
+  line-height: 1.4;
+  white-space: nowrap;
+`;
+
+// Helper function to get color based on weight
+const getWeightColor = (weight: number, theme: any) => {
+  const primary = theme.colors.primary; // Blue/Green tint
+  const danger = theme.colors.danger;  // Red tint
+  
+  if (weight > 0) {
+    const intensity = Math.min(Math.abs(weight) * 0.4, 1);
+    return `rgba(${hexToRgb(primary)}, ${0.4 + intensity * 0.6})`;
   } else {
-    ctx.strokeStyle = neuron.bias! > 0 ? colors.biasPositive : colors.biasNegative;
-    ctx.lineWidth = 3;
-    // Shadow
-    ctx.shadowColor = neuron.bias! > 0 ? colors.biasPositive : colors.biasNegative;
-    ctx.shadowBlur = 15;
-  }
-  ctx.stroke();
-  ctx.shadowBlur = 0; // Reset shadow
-
-  // Text Label
-  ctx.fillStyle = ctx.canvas.dataset.themeText || '#f5f5f5';
-  ctx.font = 'bold 13px Inter, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, neuron.x, neuron.y - 8);
-  
-  // Bias Label (if not input)
-  if (neuron.type !== 'input') {
-    ctx.font = '11px "Roboto Mono", monospace';
-    ctx.fillStyle = ctx.canvas.dataset.themeNeutralText || '#bdbdbd';
-    ctx.fillText(`b: ${neuron.bias!.toFixed(2)}`, neuron.x, neuron.y + 10);
+    const intensity = Math.min(Math.abs(weight) * 0.4, 1);
+    return `rgba(${hexToRgb(danger)}, ${0.4 + intensity * 0.6})`;
   }
 };
 
-// Draw Connection
-const drawConnection = (
-  ctx: CanvasRenderingContext2D,
-  from: Neuron,
-  to: Neuron,
-  weight: number
-) => {
-  const weightColor = weight > 0 ? colors.weightPositive : colors.weightNegative;
-  ctx.strokeStyle = weightColor;
-  ctx.lineWidth = Math.min(6, Math.max(1, Math.abs(weight) * 2));
-  ctx.globalAlpha = 0.7;
-
-  ctx.beginPath();
-  ctx.moveTo(from.x, from.y);
-  ctx.lineTo(to.x, to.y);
-  ctx.stroke();
-  
-  // Reset alpha
-  ctx.globalAlpha = 1.0;
-
-  // Draw Weight Label
-  ctx.save();
-  ctx.translate((from.x + to.x) / 2, (from.y + to.y) / 2);
-  ctx.fillStyle = ctx.canvas.dataset.themeText || '#f5f5f5';
-  ctx.font = '11px "Roboto Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(weight.toFixed(2), 0, -5);
-  ctx.restore();
+// Helper to convert hex to rgb string
+const hexToRgb = (hex: string) => {
+  let c: any = hex.substring(1).match(/.{1,2}/g);
+  c = c.map((hex: string) => parseInt(hex, 16));
+  return c.join(',');
 };
 
-// --- Main Component ---
-export const NeuralNetworkVisualizer: React.FC<NeuralNetworkVisualizerProps> = ({
+
+// Main component with canvas-based visualization
+const NeuralNetworkVisualizer: React.FC<NeuralNetworkVisualizerProps> = ({
   weights,
   biases,
-  mode,
-  epoch = 0 // epoch is not used in this version but kept for compatibility
+  mode, // <-- Destructure mode
+  inputValues = [0, 0],
 }) => {
-  
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const { theme } = useTheme(); // Get theme from context
+  const { theme } = useTheme(); // <-- Get theme context
+  const [consoleMessages, setConsoleMessages] = useState<string[]>([
+    'Network Visualizer Initialized',
+    `Mode: ${mode}`,
+  ]);
 
-  // Add validation
   const hasValidWeights = weights && typeof weights === 'object' && 'W1' in weights && 'W2' in weights;
   const hasValidBiases = biases && typeof biases === 'object' && 'b1' in biases && 'b2' in biases;
 
+  const addConsoleMessage = (message: string) => {
+    setConsoleMessages(prev => [...prev.slice(-5), message]);
+  };
+  
   useEffect(() => {
-    if (!hasValidWeights || !hasValidBiases) return;
+    addConsoleMessage(`Mode set to: ${mode}`)
+  }, [mode]);
 
+
+  // --- Network Building Functions ---
+
+  const buildNetworkArchitecture = (
+    weights: Record<string, number[][]>,
+    biases: Record<string, number[][]>,
+    mode: ModelMode
+  ): NetworkArchitecture => {
+    
+    // --- Define labels based on mode ---
+    const inputLabels = mode === 'classification' ? ['CGPA', 'IQ'] : ['StudyTime', 'GoOut'];
+    const outputLabel = mode === 'classification' ? 'Placement' : 'Grade';
+
+    const architecture: NetworkArchitecture = { layers: [], connections: [] };
+
+    // Create input layer
+    const inputNeurons: Neuron[] = [];
+    if (weights.W1 && weights.W1[0]) {
+      const inputSize = weights.W1.length;
+      for (let i = 0; i < inputSize; i++) {
+        inputNeurons.push({
+          id: `0-${i}`, type: 'input', value: inputValues[i] || 0,
+          label: inputLabels[i] || `Input ${i+1}`,
+          layerIndex: 0, neuronIndex: i, x: 0, y: 0,
+          outgoingConnections: [], bias: null,
+        });
+      }
+    }
+    architecture.layers.push({ id: 'input', neurons: inputNeurons });
+
+    // Hidden layer neurons
+    if (weights.W1 && biases.b1) {
+      const hiddenNeurons: Neuron[] = [];
+      for (let i = 0; i < biases.b1.length; i++) {
+        hiddenNeurons.push({
+          id: `1-${i}`, type: 'hidden', value: 0,
+          label: `h${i+1}`,
+          layerIndex: 1, neuronIndex: i, x: 0, y: 0,
+          outgoingConnections: [], bias: biases.b1[i][0],
+        });
+      }
+      architecture.layers.push({ id: 'hidden', neurons: hiddenNeurons });
+    }
+
+    // Output layer neurons
+    if (weights.W2 && biases.b2) {
+      const outputNeurons: Neuron[] = [];
+      for (let i = 0; i < biases.b2.length; i++) {
+        outputNeurons.push({
+          id: `2-${i}`, type: 'output', value: 0,
+          label: outputLabel,
+          layerIndex: 2, neuronIndex: i, x: 0, y: 0,
+          outgoingConnections: [], bias: biases.b2[i][0],
+        });
+      }
+      architecture.layers.push({ id: 'output', neurons: outputNeurons });
+    }
+
+    // Create connections: Input to hidden
+    if (weights.W1) {
+      for (let inputIdx = 0; inputIdx < weights.W1.length; inputIdx++) {
+        for (let hiddenIdx = 0; hiddenIdx < weights.W1[0].length; hiddenIdx++) {
+          architecture.connections.push({
+            id: `0-${inputIdx}-1-${hiddenIdx}`,
+            sourceId: `0-${inputIdx}`,
+            targetId: `1-${hiddenIdx}`,
+            weight: weights.W1[inputIdx][hiddenIdx],
+          });
+        }
+      }
+    }
+
+    // Create connections: Hidden to output
+    if (weights.W2) {
+      for (let hiddenIdx = 0; hiddenIdx < weights.W2.length; hiddenIdx++) {
+        for (let outputIdx = 0; outputIdx < weights.W2[0].length; outputIdx++) {
+          architecture.connections.push({
+            id: `1-${hiddenIdx}-2-${outputIdx}`,
+            sourceId: `1-${hiddenIdx}`,
+            targetId: `2-${outputIdx}`,
+            weight: weights.W2[hiddenIdx][outputIdx],
+          });
+        }
+      }
+    }
+    return architecture;
+  };
+
+  const calculateNeuronPositions = (
+    layers: Layer[],
+    width: number,
+    height: number
+  ): void => {
+    const horizontalPadding = width * 0.15;
+    const verticalPadding = height * 0.15;
+    const availableWidth = width - 2 * horizontalPadding;
+    const availableHeight = height - 2 * verticalPadding;
+    
+    const layerSpacing = availableWidth / (layers.length - 1);
+    
+    layers.forEach((layer, layerIndex) => {
+      const neurons = layer.neurons;
+      const neuronSpacing = availableHeight / Math.max(neurons.length - 1, 1);
+      
+      neurons.forEach((neuron, neuronIndex) => {
+        neuron.x = horizontalPadding + layerIndex * layerSpacing;
+        
+        const layerHeight = (neurons.length - 1) * neuronSpacing;
+        const offsetY = (availableHeight - layerHeight) / 2;
+        neuron.y = verticalPadding + offsetY + neuronIndex * neuronSpacing;
+        
+        // --- Add labels ---
+        neuron.label = layer.neurons[neuronIndex].label; 
+      });
+    });
+  };
+
+  
+  // --- Canvas Drawing Functions (Modified for Style) ---
+
+  const drawNetwork = (
+    network: NetworkArchitecture,
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number
+  ): void => {
+    ctx.clearRect(0, 0, width, height);
+    
+    // Draw connections
+    network.layers.forEach(layer => {
+      layer.neurons.forEach(neuron => {
+        neuron.outgoingConnections.forEach(connection => {
+          if (connection.to) {
+            drawArrow(ctx, neuron.x, neuron.y, connection.to.x, connection.to.y, connection.weight);
+          }
+        });
+      });
+    });
+    
+    // Draw neurons
+    network.layers.forEach((layer) => {
+      layer.neurons.forEach((neuron) => {
+        drawNeuron(ctx, neuron.x, neuron.y, neuron.type, neuron.label, neuron.bias);
+      });
+    });
+  };
+
+  const drawNeuron = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    type: NeuronType,
+    label: string,
+    bias?: number | null
+  ) => {
+    let color = theme.colors.primary;
+    if (type === 'hidden') color = theme.colors.secondary;
+    if (type === 'output') color = '#FFA500'; // Orange for output
+
+    // 1. Draw Glow
+    ctx.shadowBlur = GlowRadius;
+    ctx.shadowColor = `${color}80`;
+    
+    // 2. Draw Neuron Body
+    ctx.beginPath();
+    ctx.arc(x, y, NeuronRadius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    
+    // 3. Draw Inner Stroke (for definition)
+    ctx.shadowBlur = 0; // Turn off glow for stroke
+    ctx.strokeStyle = `${color}90`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // 4. Draw Text (Bias or Label)
+    ctx.font = `bold 11px ${FontFace}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = ValueColor;
+    
+    if (bias !== null && bias !== undefined) {
+      ctx.fillText(`b: ${bias.toFixed(2)}`, x, y);
+    }
+
+    // 5. Draw Label (Input/Output)
+    ctx.font = `500 12px ${FontFace}`;
+    ctx.fillStyle = LabelColor;
+    if (type === 'input') {
+      ctx.textAlign = 'right';
+      ctx.fillText(label, x - NeuronRadius - 15, y);
+    } else if (type === 'output') {
+      ctx.textAlign = 'left';
+      ctx.fillText(label, x + NeuronRadius + 15, y);
+    }
+  };
+
+  const drawArrow = (
+    ctx: CanvasRenderingContext2D,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    weight: number
+  ) => {
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    const fromRadius = NeuronRadius + 2;
+    const toRadius = NeuronRadius + 2;
+    
+    const adjustedFromX = fromX + fromRadius * Math.cos(angle);
+    const adjustedFromY = fromY + fromRadius * Math.sin(angle);
+    const adjustedToX = toX - toRadius * Math.cos(angle);
+    const adjustedToY = toY - toRadius * Math.sin(angle);
+    
+    const color = getWeightColor(weight, theme);
+    const lineWidth = Math.max(1, Math.min(Math.abs(weight) * 2, 6));
+
+    // 1. Draw connection line
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.moveTo(adjustedFromX, adjustedFromY);
+    ctx.lineTo(adjustedToX, adjustedToY);
+    ctx.stroke();
+    
+    // 2. Draw Arrowhead
+    const headLength = 10;
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.moveTo(adjustedToX, adjustedToY);
+    ctx.lineTo(
+      adjustedToX - headLength * Math.cos(angle - Math.PI / 6),
+      adjustedToY - headLength * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.lineTo(
+      adjustedToX - headLength * Math.cos(angle + Math.PI / 6),
+      adjustedToY - headLength * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.closePath();
+    ctx.fill();
+    
+    // 3. Draw Weight Value
+    const midX = (adjustedFromX + adjustedToX) / 2;
+    const midY = (adjustedFromY + adjustedToY) / 2 - 8; // Offset text up
+    
+    ctx.font = `bold 12px ${FontFace}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Add text background
+    const weightText = weight.toFixed(2);
+    const textWidth = ctx.measureText(weightText).width;
+    ctx.fillStyle = theme.background === '#121212' ? 'rgba(10, 10, 10, 0.7)' : 'rgba(250, 250, 250, 0.7)';
+    ctx.fillRect(midX - textWidth / 2 - 4, midY - 8, textWidth + 8, 16);
+    
+    // Draw text
+    ctx.fillStyle = color;
+    ctx.fillText(weightText, midX, midY);
+  };
+  
+
+  // --- useEffect for Drawing ---
+  useEffect(() => {
+    if (!hasValidWeights || !hasValidBiases) {
+      addConsoleMessage('Waiting for valid parameters...');
+      return;
+    }
+    
     const canvas = canvasRef.current;
     if (!canvas) return;
-
+    
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // --- Pass theme colors to canvas for drawing ---
-    canvas.dataset.themeBackground = theme.background;
-    canvas.dataset.themeText = theme.text;
-    canvas.dataset.themeNeutralText = theme.neutralText;
-
-    // --- High DPI Scaling ---
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    const canvasWidth = rect.width;
-    const canvasHeight = 350; // Fixed height
     
-    canvas.width = canvasWidth * dpr;
-    canvas.height = canvasHeight * dpr;
-    
-    canvas.style.width = `${canvasWidth}px`;
-    canvas.style.height = `${canvasHeight}px`;
-    
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
-    // --- End Scaling ---
-
-    const network = buildNetworkArchitecture(weights, biases, mode);
-    calculateNeuronPositions(network.layers, canvasWidth, canvasHeight);
-
-    // --- Draw Loop ---
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-    // 1. Draw Connections (behind neurons)
-    const neuronMap = new Map<string, Neuron>();
-    network.layers.flat().forEach(n => neuronMap.set(n.id, n));
     
-    network.connections.forEach(conn => {
-      const from = neuronMap.get(conn.sourceId);
-      const to = neuronMap.get(conn.targetId);
-      if (from && to) {
-        drawConnection(ctx, from, to, conn.weight);
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+    
+    // Build and Draw
+    const network = buildNetworkArchitecture(weights, biases, mode);
+    
+    network.layers.forEach(layer => layer.neurons.forEach(n => n.outgoingConnections = []));
+    
+    network.connections.forEach(connection => {
+      let sourceNeuron: Neuron | undefined;
+      let targetNeuron: Neuron | undefined;
+      
+      network.layers.forEach(layer => {
+        layer.neurons.forEach(neuron => {
+          if (neuron.id === connection.sourceId) sourceNeuron = neuron;
+          if (neuron.id === connection.targetId) targetNeuron = neuron;
+        });
+      });
+      
+      if (sourceNeuron && targetNeuron) {
+        connection.to = targetNeuron;
+        sourceNeuron.outgoingConnections.push(connection);
       }
     });
-
-    // 2. Draw Neurons (on top)
-    const labels = {
-      classification: { i1: 'CGPA', i2: 'IQ', h1: 'H1', h2: 'H2', o1: 'Placed' },
-      regression: { i1: 'Study', i2: 'Go Out', h1: 'H1', h2: 'H2', o1: 'Grade' }
-    };
-    const currentLabels = labels[mode];
     
-    network.layers.flat().forEach(neuron => {
-      drawNeuron(ctx, neuron, currentLabels[neuron.id as keyof typeof currentLabels]);
-    });
+    calculateNeuronPositions(network.layers, rect.width, rect.height);
+    drawNetwork(network, ctx, rect.width, rect.height);
     
-  // Re-draw when any of these change
-  }, [weights, biases, mode, theme, hasValidWeights, hasValidBiases]);
+    addConsoleMessage('Network re-drawn.');
 
+  }, [weights, biases, mode, theme]); // Re-draw when mode or theme changes too
+  
+  
   if (!hasValidWeights || !hasValidBiases) {
     return (
       <VisualizerContainer>
-        <p>Error: Invalid weights or biases data.</p>
+        <CanvasContainer style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ color: theme.neutralText, textAlign: 'center' }}>
+            <h3>Loading Network Parameters...</h3>
+            <p>Waiting for training data or initial state.</p>
+          </div>
+        </CanvasContainer>
       </VisualizerContainer>
     );
   }
@@ -310,8 +497,13 @@ export const NeuralNetworkVisualizer: React.FC<NeuralNetworkVisualizerProps> = (
   return (
     <VisualizerContainer>
       <CanvasContainer>
-        {/* We use 800x350 as the *base* resolution, but it will scale */}
-        <canvas ref={canvasRef} width={800} height={350} />
+        <canvas ref={canvasRef} />
+        
+        <DebugConsole>
+          {consoleMessages.map((msg, index) => (
+            <ConsoleLine key={index}>&gt; {msg}</ConsoleLine>
+          ))}
+        </DebugConsole>
       </CanvasContainer>
     </VisualizerContainer>
   );

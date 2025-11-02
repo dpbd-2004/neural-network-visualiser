@@ -150,6 +150,17 @@ class RegressionNetwork:
     
     def sigmoid(self, Z):
         return 1 / (1 + np.exp(-Z))
+
+    # --- NEW: Add ReLU activation function ---
+    def relu(self, Z):
+        return np.maximum(0, Z)
+
+    # --- NEW: Add ReLU derivative (for backpropagation) ---
+    def relu_backward(self, Z):
+        # dReLU/dZ is 1 if Z > 0, 0 otherwise
+        dZ = np.zeros_like(Z)
+        dZ[Z > 0] = 1
+        return dZ
     
     def linear_activation(self, Z):
         # No activation for regression output
@@ -161,7 +172,8 @@ class RegressionNetwork:
         W1 = self.parameters['W1']
         b1 = self.parameters['b1']
         Z1 = np.dot(W1.T, A1) + b1
-        A2 = self.sigmoid(Z1)  # Sigmoid in hidden layer
+        # --- MODIFIED: Use ReLU for hidden layer ---
+        A2 = self.relu(Z1)  # Was self.sigmoid(Z1)
         
         W2 = self.parameters['W2']
         b2 = self.parameters['b2']
@@ -180,9 +192,13 @@ class RegressionNetwork:
         cost = 0.5 * np.square(y_hat - y)
         return np.squeeze(cost)
     
-    def update_parameters_regression(self, y, y_hat, A2, X, learning_rate=0.01):
+    # --- MODIFIED: Changed signature from A2 to Z1 ---
+    def update_parameters_regression(self, y, y_hat, Z1, X, learning_rate=0.01):
         # y and y_hat are scalars
         
+        # --- MODIFIED: Need A2 for W2 update, get it from Z1 ---
+        A2 = self.relu(Z1)
+
         # Output layer (linear activation)
         dZ2 = y_hat - y  # Derivative of 1/2*MSE w.r.t Z2
         
@@ -191,17 +207,20 @@ class RegressionNetwork:
         self.parameters['W2'][1][0] -= learning_rate * dZ2 * A2[1][0]
         self.parameters['b2'][0][0] -= learning_rate * dZ2
 
-        # Hidden layer (sigmoid activation)
-        d_sigmoid = A2 * (1 - A2)
+        # Hidden layer (ReLU activation)
+        # --- MODIFIED: Use ReLU derivative ---
+        d_activation = self.relu_backward(Z1) # Was A2 * (1 - A2)
         
         # Neuron 1
-        grad_hidden1 = dZ2 * self.parameters['W2'][0][0] * d_sigmoid[0][0]
+        # --- MODIFIED: Use d_activation ---
+        grad_hidden1 = dZ2 * self.parameters['W2'][0][0] * d_activation[0][0]
         self.parameters['W1'][0][0] -= learning_rate * grad_hidden1 * X[0][0]
         self.parameters['W1'][0][1] -= learning_rate * grad_hidden1 * X[1][0]
         self.parameters['b1'][0][0] -= learning_rate * grad_hidden1
 
         # Neuron 2
-        grad_hidden2 = dZ2 * self.parameters['W2'][1][0] * d_sigmoid[1][0]
+        # --- MODIFIED: Use d_activation ---
+        grad_hidden2 = dZ2 * self.parameters['W2'][1][0] * d_activation[1][0]
         self.parameters['W1'][1][0] -= learning_rate * grad_hidden2 * X[0][0]
         self.parameters['W1'][1][1] -= learning_rate * grad_hidden2 * X[1][0]
         self.parameters['b1'][1][0] -= learning_rate * grad_hidden2
@@ -224,8 +243,6 @@ class RegressionNetwork:
         y_pred = self.scaler_y.inverse_transform(y_pred_scaled)
         return r2_score(y_true, y_pred)
 
-    # ------------------- THIS IS THE FIX -------------------
-    # This function now generates a 2D plot instead of a 3D plot
     def generate_prediction_surface(self, X_scaled_train, Y_scaled_train):
         """
         Generates two 2D "best-fit line" plots (Partial Dependence Plots)
@@ -300,7 +317,6 @@ class RegressionNetwork:
         plt.close(fig)
         
         return surface_img
-    # ----------------- END OF FIX -----------------
 
     def train(self, learning_rate=0.01, epochs=100, callback=None):
         if self.parameters is None:
@@ -342,7 +358,10 @@ class RegressionNetwork:
                 loss = self.compute_cost_mse(y_i, y_hat_value) # Pass scalars
                 epoch_loss += loss
                 
-                self.update_parameters_regression(y_i, y_hat_value, cache['A2'], X_i, learning_rate)
+                # --- MODIFIED: Pass cache['Z1'] for ReLU backprop ---
+                self.update_parameters_regression(
+                    y_i, y_hat_value, cache['Z1'], X_i, learning_rate
+                )
             
             avg_loss = epoch_loss / m
             
